@@ -23,6 +23,8 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
+RUN mkdir -p logs
+
 RUN chmod +x docker/django/entrypoint.sh
 
 ENTRYPOINT ["docker/django/entrypoint.sh"]
