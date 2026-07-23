@@ -1,20 +1,23 @@
+import logging
+
 from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
+from core.responses import error_response, success_response
 from .serializers import ProfileSerializer, ChangePasswordSerializer, ProfilePictureSerializer
 from .services import ProfileService
+
+
+logger = logging.getLogger(__name__)
 
 
 class ProfileView(APIView):
     def get(self, request):
         try:
             service = ProfileService(user=request.user)
-        except Exception as e:
-            return Response(
-                {'detail': 'Could not load profile.', 'code': 'PROFILE_LOAD_FAILED'},
-                status=500,
-            )
-        return Response({'data': service.get_profile_data()})
+        except Exception:
+            logger.exception('Could not load profile for user_id=%s', request.user.id)
+            return error_response('Could not load profile.', code='PROFILE_LOAD_FAILED', status=500)
+        return success_response(service.get_profile_data(), code='PROFILE_LOADED')
 
     def patch(self, request):
         serializer = ProfileSerializer(data=request.data, partial=True)
@@ -22,14 +25,12 @@ class ProfileView(APIView):
 
         try:
             service = ProfileService(user=request.user)
-            user = service.update_profile(serializer.validated_data)
-        except Exception as e:
-            return Response(
-                {'detail': 'Could not update profile.', 'code': 'PROFILE_UPDATE_FAILED'},
-                status=500,
-            )
+            service.update_profile(serializer.validated_data)
+        except Exception:
+            logger.exception('Could not update profile for user_id=%s', request.user.id)
+            return error_response('Could not update profile.', code='PROFILE_UPDATE_FAILED', status=500)
 
-        return Response({'data': service.get_profile_data()})
+        return success_response(service.get_profile_data(), code='PROFILE_UPDATED')
 
 
 class ChangePasswordView(APIView):
@@ -43,16 +44,14 @@ class ChangePasswordView(APIView):
                 serializer.validated_data['current_password'],
                 serializer.validated_data['new_password'],
             )
-        except Exception as e:
-            return Response(
-                {'detail': 'Could not change password.', 'code': 'PASSWORD_CHANGE_FAILED'},
-                status=500,
-            )
+        except Exception:
+            logger.exception('Could not change password for user_id=%s', request.user.id)
+            return error_response('Could not change password.', code='PASSWORD_CHANGE_FAILED', status=500)
 
         if not success:
             raise ValidationError(message)
 
-        return Response({'message': message})
+        return success_response(message=message, code='PASSWORD_CHANGED')
 
 
 class ProfilePictureView(APIView):
@@ -63,10 +62,8 @@ class ProfilePictureView(APIView):
         try:
             service = ProfileService(user=request.user)
             service.update_picture(serializer.validated_data['profile_picture'])
-        except Exception as e:
-            return Response(
-                {'detail': 'Could not update picture.', 'code': 'PICTURE_UPDATE_FAILED'},
-                status=500,
-            )
+        except Exception:
+            logger.exception('Could not update profile picture for user_id=%s', request.user.id)
+            return error_response('Could not update picture.', code='PICTURE_UPDATE_FAILED', status=500)
 
-        return Response({'data': ProfileService(user=request.user).get_profile_data()})
+        return success_response(ProfileService(user=request.user).get_profile_data(), code='PICTURE_UPDATED')

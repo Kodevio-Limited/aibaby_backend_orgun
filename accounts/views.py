@@ -1,13 +1,18 @@
+import logging
+
 from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from django.contrib.auth import authenticate
+from core.responses import error_response, success_response
 from .serializers import (
     RegisterSerializer, SignInSerializer, ForgotPasswordSerializer,
     VerifyOTPSerializer, ResetPasswordSerializer,
 )
 from .services import AuthService
+
+
+logger = logging.getLogger(__name__)
 
 
 class RegisterView(APIView):
@@ -24,14 +29,14 @@ class RegisterView(APIView):
                 email=serializer.validated_data['email'],
                 password=serializer.validated_data['password'],
             )
-        except Exception as e:
-            return Response(
-                {'detail': 'Registration failed.', 'code': 'REGISTRATION_FAILED'},
-                status=400,
-            )
+        except Exception:
+            logger.exception('Registration failed for email=%s', serializer.validated_data['email'])
+            return error_response('Registration failed.', code='REGISTRATION_FAILED', status=400)
 
-        return Response(
-            {'data': {'user': service.get_tokens(user)['user']}, 'message': 'Registered. Please verify your email.'},
+        return success_response(
+            {'user': service.get_tokens(user)['user']},
+            message='Registered. Please verify your email.',
+            code='REGISTERED',
             status=201,
         )
 
@@ -53,13 +58,11 @@ class SignInView(APIView):
         try:
             service = AuthService()
             tokens = service.get_tokens(user)
-        except Exception as e:
-            return Response(
-                {'detail': 'Sign in failed.', 'code': 'SIGNIN_FAILED'},
-                status=500,
-            )
+        except Exception:
+            logger.exception('Sign in failed for email=%s', serializer.validated_data['email'])
+            return error_response('Sign in failed.', code='SIGNIN_FAILED', status=500)
 
-        return Response({'data': tokens})
+        return success_response(tokens, code='SIGNED_IN')
 
 
 class ForgotPasswordView(APIView):
@@ -71,14 +74,12 @@ class ForgotPasswordView(APIView):
 
         try:
             service = AuthService()
-            code = service.generate_otp(serializer.validated_data['email'])
-        except Exception as e:
-            return Response(
-                {'detail': 'Could not process request.', 'code': 'OTP_FAILED'},
-                status=500,
-            )
+            service.generate_otp(serializer.validated_data['email'])
+        except Exception:
+            logger.exception('OTP generation failed for email=%s', serializer.validated_data['email'])
+            return error_response('Could not process request.', code='OTP_FAILED', status=500)
 
-        return Response({'message': 'OTP sent to email.'})
+        return success_response(message='OTP sent to email.', code='OTP_SENT')
 
 
 class VerifyOTPView(APIView):
@@ -94,16 +95,14 @@ class VerifyOTPView(APIView):
                 serializer.validated_data['email'],
                 serializer.validated_data['otp'],
             )
-        except Exception as e:
-            return Response(
-                {'detail': 'OTP verification failed.', 'code': 'OTP_VERIFICATION_FAILED'},
-                status=500,
-            )
+        except Exception:
+            logger.exception('OTP verification failed for email=%s', serializer.validated_data['email'])
+            return error_response('OTP verification failed.', code='OTP_VERIFICATION_FAILED', status=500)
 
         if not reset_token:
             raise ValidationError('Invalid or expired OTP.')
 
-        return Response({'data': {'reset_token': reset_token}, 'message': 'OTP verified.'})
+        return success_response({'reset_token': reset_token}, message='OTP verified.', code='OTP_VERIFIED')
 
 
 class ResetPasswordView(APIView):
@@ -119,16 +118,14 @@ class ResetPasswordView(APIView):
                 serializer.validated_data['reset_token'],
                 serializer.validated_data['password'],
             )
-        except Exception as e:
-            return Response(
-                {'detail': 'Password reset failed.', 'code': 'RESET_FAILED'},
-                status=500,
-            )
+        except Exception:
+            logger.exception('Password reset failed for reset_token=%s', serializer.validated_data['reset_token'])
+            return error_response('Password reset failed.', code='RESET_FAILED', status=500)
 
         if not success:
             raise ValidationError(message)
 
-        return Response({'message': message})
+        return success_response(message=message, code='PASSWORD_RESET')
 
 
 class LogoutView(APIView):
@@ -141,10 +138,8 @@ class LogoutView(APIView):
             from rest_framework_simplejwt.tokens import RefreshToken
             token = RefreshToken(refresh)
             token.blacklist()
-        except Exception as e:
-            return Response(
-                {'detail': 'Logout failed.', 'code': 'LOGOUT_FAILED'},
-                status=400,
-            )
+        except Exception:
+            logger.exception('Logout failed')
+            return error_response('Logout failed.', code='LOGOUT_FAILED', status=400)
 
-        return Response({'message': 'Logged out.'})
+        return success_response(message='Logged out.', code='LOGGED_OUT')

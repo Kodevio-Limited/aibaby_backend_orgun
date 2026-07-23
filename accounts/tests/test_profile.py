@@ -17,12 +17,14 @@ class ProfileTests(TestCase):
     def test_get_profile(self):
         response = self.client.get(reverse('profile'))
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 'PROFILE_LOADED')
         self.assertEqual(response.data['data']['email'], 'test@example.com')
 
     def test_update_profile(self):
         data = {'full_name': 'Updated Name'}
         response = self.client.patch(reverse('profile'), data, format='json')
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 'PROFILE_UPDATED')
         self.user.refresh_from_db()
         self.assertEqual(self.user.full_name, 'Updated Name')
 
@@ -34,6 +36,7 @@ class ProfileTests(TestCase):
         }
         response = self.client.post(reverse('change-password'), data, format='json')
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 'PASSWORD_CHANGED')
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password('newpass123'))
 
@@ -45,3 +48,5 @@ class ProfileTests(TestCase):
         }
         response = self.client.post(reverse('change-password'), data, format='json')
         self.assertEqual(response.status_code, 400)
+        self.assertIn('detail', response.data)
+        self.assertIn('code', response.data)

@@ -22,6 +22,8 @@ class AuthTests(TestCase):
         response = self.client.post(self.register_url, data, format='json')
         self.assertEqual(response.status_code, 201)
         self.assertIn('data', response.data)
+        self.assertEqual(response.data['code'], 'REGISTERED')
+        self.assertIn('message', response.data)
         self.assertEqual(User.objects.count(), 1)
         user = User.objects.first()
         self.assertEqual(user.email, 'test@example.com')
@@ -36,6 +38,8 @@ class AuthTests(TestCase):
         }
         response = self.client.post(self.register_url, data, format='json')
         self.assertEqual(response.status_code, 400)
+        self.assertIn('detail', response.data)
+        self.assertIn('code', response.data)
 
     def test_register_duplicate_email(self):
         User.objects.create_user(full_name='Existing', email='test@example.com', password='pass123')
@@ -47,12 +51,15 @@ class AuthTests(TestCase):
         }
         response = self.client.post(self.register_url, data, format='json')
         self.assertEqual(response.status_code, 400)
+        self.assertIn('detail', response.data)
+        self.assertIn('code', response.data)
 
     def test_sign_in_success(self):
         User.objects.create_user(full_name='Test', email='test@example.com', password='testpass123')
         data = {'email': 'test@example.com', 'password': 'testpass123'}
         response = self.client.post(self.signin_url, data, format='json')
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 'SIGNED_IN')
         self.assertIn('access', response.data['data'])
         self.assertIn('refresh', response.data['data'])
         self.assertIn('user', response.data['data'])
@@ -62,3 +69,5 @@ class AuthTests(TestCase):
         data = {'email': 'test@example.com', 'password': 'wrongpass'}
         response = self.client.post(self.signin_url, data, format='json')
         self.assertEqual(response.status_code, 401)
+        self.assertIn('detail', response.data)
+        self.assertIn('code', response.data)
