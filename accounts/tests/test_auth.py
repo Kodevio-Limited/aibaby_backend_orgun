@@ -61,6 +61,7 @@ class AuthTests(TestCase):
         response = self.client.post(self.signin_url, data, format='json')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['code'], 'SIGNED_IN')
+        self.assertEqual(response.data['message'], 'Signed in successfully.')
         self.assertIn('access', response.data['data'])
         self.assertIn('refresh', response.data['data'])
         self.assertIn('user', response.data['data'])

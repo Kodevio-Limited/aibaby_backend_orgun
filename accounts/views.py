@@ -62,7 +62,7 @@ class SignInView(APIView):
             logger.exception('Sign in failed for email=%s', serializer.validated_data['email'])
             return error_response('Sign in failed.', code='SIGNIN_FAILED', status=500)
 
-        return success_response(tokens, code='SIGNED_IN')
+        return success_response(tokens, message='Signed in successfully.', code='SIGNED_IN')
 
 
 class ForgotPasswordView(APIView):
