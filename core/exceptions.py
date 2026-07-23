@@ -45,6 +45,8 @@ def custom_exception_handler(exc, context):
         detail = _extract_detail(response.data, str(exc))
         custom_response = {
             'detail': detail,
+            'message': detail,
+            'data': {},
             'code': getattr(exc, 'default_code', 'error'),
         }
         response.data = custom_response
