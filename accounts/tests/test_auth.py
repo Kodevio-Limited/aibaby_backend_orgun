@@ -53,6 +53,7 @@ class AuthTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('detail', response.data)
         self.assertIn('code', response.data)
+        self.assertEqual(response.data['detail'], 'Email already registered.')
 
     def test_sign_in_success(self):
         User.objects.create_user(full_name='Test', email='test@example.com', password='testpass123')
