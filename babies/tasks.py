@@ -1,6 +1,6 @@
 from celery import shared_task
 from .models import BabyImage
-from .services.generation_service import GenerationService
+from .services.generation_service import GenerationService, REPLICATE_BABY_PROVIDER
 from .services.similarity_service import SimilarityService
 
 
@@ -42,10 +42,11 @@ def process_baby_generation(baby_image_id):
         prediction = gen_service.generate_baby(
             father_photo_url=baby_image.father_photo.url,
             mother_photo_url=baby_image.mother_photo.url,
+            gender=baby_image.gender,
             prompt_extra=_build_prompt_extra(baby_image),
         )
         baby_image.external_job_id = prediction.id
-        baby_image.ai_provider = "replicate:<chosen-model-slug>"
+        baby_image.ai_provider = REPLICATE_BABY_PROVIDER
         baby_image.save(update_fields=['external_job_id', 'ai_provider'])
 
         result = gen_service.client.predictions.wait(prediction)

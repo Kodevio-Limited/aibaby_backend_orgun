@@ -1,12 +1,15 @@
 import random
 import string
+import logging
 from datetime import timedelta
 from django.utils import timezone
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import OTP
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class AuthService:
@@ -41,6 +44,11 @@ class AuthService:
             code=code,
             expires_at=timezone.now() + timedelta(minutes=10),
         )
+
+        # Local/dev visibility only. Never log OTP in production.
+        if settings.DEBUG:
+            logger.info('DEV OTP for %s: %s', email, code)
+
         return code
 
     def verify_otp(self, email, code):

@@ -1,5 +1,8 @@
 from django.conf import settings
 
+REPLICATE_BABY_MODEL = 'smoosh-sh/baby-mystic'
+REPLICATE_BABY_PROVIDER = 'replicate:smoosh-sh/baby-mystic'
+
 
 class GenerationService:
     def __init__(self):
@@ -37,15 +40,17 @@ class GenerationService:
 
         return ', '.join(parts)
 
-    def generate_baby(self, father_photo_url, mother_photo_url, prompt_extra=''):
-        prompt = self.build_prompt() + (', ' + prompt_extra if prompt_extra else '')
+    def generate_baby(self, father_photo_url, mother_photo_url, gender=None, prompt_extra=''):
+        input_data = {
+            'image': father_photo_url,
+            'image2': mother_photo_url,
+        }
+        if gender in ('boy', 'girl'):
+            input_data['gender'] = gender
+
         prediction = self.client.predictions.create(
-            model="<chosen-model-slug>",
-            input={
-                "image": father_photo_url,
-                "image2": mother_photo_url,
-                "prompt": prompt,
-            }
+            model=REPLICATE_BABY_MODEL,
+            input=input_data,
         )
         return prediction
 
