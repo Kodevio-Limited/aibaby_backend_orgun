@@ -2,21 +2,22 @@
 
 set -e
 
-echo "Waiting for PostgreSQL..."
+if [ "$1" = "gunicorn" ]; then
 
-while ! nc -z db 5432; do
-    sleep 1
-done
+    echo "Waiting for PostgreSQL..."
 
-echo "Database Ready"
+    while ! nc -z db 5432; do
+        sleep 1
+    done
 
-mkdir -p logs
+    echo "Database Ready"
 
-python manage.py migrate
+    mkdir -p logs
 
-python manage.py collectstatic --noinput
+    python manage.py migrate
 
-exec gunicorn config.wsgi:application \
-    --bind 0.0.0.0:8000 \
-    --workers 4 \
-    --timeout 120
+    python manage.py collectstatic --noinput
+
+fi
+
+exec "$@"
