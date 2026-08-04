@@ -25,12 +25,12 @@ class AuthService:
         )
         return user
 
-    def get_tokens(self, user):
+    def get_tokens(self, user, request=None):
         refresh = RefreshToken.for_user(user)
         return {
             'access': str(refresh.access_token),
             'refresh': str(refresh),
-            'user': ProfileService(user=user).get_profile_data(),
+            'user': ProfileService(user=user).get_profile_data(request),
         }
 
     def generate_otp(self, email):
@@ -86,13 +86,18 @@ class ProfileService:
     def __init__(self, user):
         self.user = user
 
-    def get_profile_data(self):
+    def get_profile_data(self, request=None):
+        picture_url = None
+        if self.user.profile_picture:
+            picture_url = self.user.profile_picture.url
+            if request is not None:
+                picture_url = request.build_absolute_uri(picture_url)
         return {
             'id': str(self.user.id),
             'full_name': self.user.full_name,
             'email': self.user.email,
             'is_pro': self.user.is_pro,
-            'profile_picture': self.user.profile_picture.url if self.user.profile_picture else None,
+            'profile_picture': picture_url,
         }
 
     def update_profile(self, data):

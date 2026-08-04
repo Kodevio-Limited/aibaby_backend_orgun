@@ -34,7 +34,7 @@ class RegisterView(APIView):
             return error_response('Registration failed.', code='REGISTRATION_FAILED', status=400)
 
         return success_response(
-            {'user': service.get_tokens(user)['user']},
+            {'user': service.get_tokens(user, request)['user']},
             message='Registered. Please verify your email.',
             code='REGISTERED',
             status=201,
@@ -57,7 +57,7 @@ class SignInView(APIView):
 
         try:
             service = AuthService()
-            tokens = service.get_tokens(user)
+            tokens = service.get_tokens(user, request)
         except Exception:
             logger.exception('Sign in failed for email=%s', serializer.validated_data['email'])
             return error_response('Sign in failed.', code='SIGNIN_FAILED', status=500)

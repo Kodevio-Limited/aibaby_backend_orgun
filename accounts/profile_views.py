@@ -17,7 +17,7 @@ class ProfileView(APIView):
         except Exception:
             logger.exception('Could not load profile for user_id=%s', request.user.id)
             return error_response('Could not load profile.', code='PROFILE_LOAD_FAILED', status=500)
-        return success_response(service.get_profile_data(), code='PROFILE_LOADED')
+        return success_response(service.get_profile_data(request), code='PROFILE_LOADED')
 
     def patch(self, request):
         serializer = ProfileSerializer(data=request.data, partial=True)
@@ -30,7 +30,7 @@ class ProfileView(APIView):
             logger.exception('Could not update profile for user_id=%s', request.user.id)
             return error_response('Could not update profile.', code='PROFILE_UPDATE_FAILED', status=500)
 
-        return success_response(service.get_profile_data(), code='PROFILE_UPDATED')
+        return success_response(service.get_profile_data(request), code='PROFILE_UPDATED')
 
 
 class ChangePasswordView(APIView):
@@ -66,4 +66,4 @@ class ProfilePictureView(APIView):
             logger.exception('Could not update profile picture for user_id=%s', request.user.id)
             return error_response('Could not update picture.', code='PICTURE_UPDATE_FAILED', status=500)
 
-        return success_response(ProfileService(user=request.user).get_profile_data(), code='PICTURE_UPDATED')
+        return success_response(ProfileService(user=request.user).get_profile_data(request), code='PICTURE_UPDATED')
