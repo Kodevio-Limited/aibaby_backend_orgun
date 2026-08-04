@@ -57,6 +57,9 @@ services:
     env_file:
       - .env
 
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/', timeout=5)"]
       interval: 10s
@@ -97,6 +100,9 @@ services:
     env_file:
       - .env
 
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+
     depends_on:
       django:
         condition: service_healthy
@@ -119,6 +125,9 @@ services:
 
     env_file:
       - .env
+
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.development
 
     depends_on:
       django:
