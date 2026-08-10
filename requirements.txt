@@ -17,6 +17,8 @@ Pillow>=11.0
 sentry-sdk>=2.0
 replicate
 requests
+
+dlib-bin
 face_recognition
-opencv-python
+opencv-python-headless
 numpy

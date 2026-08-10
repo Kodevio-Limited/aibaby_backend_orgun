@@ -1,6 +1,7 @@
 from django.conf import settings
 
 REPLICATE_BABY_MODEL = 'smoosh-sh/baby-mystic'
+REPLICATE_BABY_VERSION = 'ba5ab694a9df055fa469e55eeab162cc288039da0abd8b19d956980cc3b49f6d'
 REPLICATE_BABY_PROVIDER = 'replicate:smoosh-sh/baby-mystic'
 
 
@@ -49,7 +50,7 @@ class GenerationService:
             input_data['gender'] = gender
 
         prediction = self.client.predictions.create(
-            model=REPLICATE_BABY_MODEL,
+            version=REPLICATE_BABY_VERSION,
             input=input_data,
         )
         return prediction
