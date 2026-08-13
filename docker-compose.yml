@@ -116,7 +116,7 @@ services:
       - dokploy-network
     labels:
       - traefik.enable=true
-      - traefik.http.routers.aibaby-nginx.rule=Host(aibaby.kodevio.com)
+      - traefik.http.routers.aibaby-nginx.rule=Host(`aibaby.kodevio.com`)
       - traefik.http.routers.aibaby-nginx.entrypoints=websecure
       - traefik.http.routers.aibaby-nginx.tls.certResolver=letsencrypt
       - traefik.docker.network=dokploy-network
