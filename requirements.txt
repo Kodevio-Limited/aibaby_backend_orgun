@@ -17,6 +17,7 @@ Pillow>=11.0
 sentry-sdk>=2.0
 replicate
 requests
+stripe
 
 dlib-bin
 face_recognition

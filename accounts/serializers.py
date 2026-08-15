@@ -49,8 +49,8 @@ class ResetPasswordSerializer(serializers.Serializer):
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['full_name', 'email', 'profile_picture', 'is_pro']
-        read_only_fields = ['is_pro']
+        fields = ['full_name', 'email', 'profile_picture', 'is_pro', 'credits_balance']
+        read_only_fields = ['is_pro', 'credits_balance']
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -66,3 +66,92 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 class ProfilePictureSerializer(serializers.Serializer):
     profile_picture = serializers.ImageField()
+
+
+class CreditPlanOutputSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CreditPlan
+        fields = [
+            'id', 'name', 'price', 'credits', 'features', 'popular',
+            'is_active', 'order', 'created_at', 'updated_at',
+        ]
+
+
+class CreditPlanInputSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CreditPlan
+        fields = [
+            'name', 'price', 'credits', 'features', 'popular',
+            'is_active', 'order',
+        ]
+
+
+class CheckoutSerializer(serializers.Serializer):
+    plan_id = serializers.UUIDField()
+    provider = serializers.ChoiceField(choices=['stripe', 'test'], default='stripe')
+
+
+class CheckoutOutputSerializer(serializers.Serializer):
+    payment_id = serializers.UUIDField()
+    client_secret = serializers.CharField(required=False, allow_blank=True)
+    provider = serializers.CharField()
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    currency = serializers.CharField()
+
+
+class ConfirmPaymentSerializer(serializers.Serializer):
+    payment_id = serializers.UUIDField()
+
+
+class PaymentOutputSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = [
+            'id', 'amount', 'currency', 'provider', 'provider_payment_id',
+            'status', 'metadata', 'created_at', 'updated_at',
+        ]
+
+
+class CreditTransactionOutputSerializer(serializers.ModelSerializer):
+    user_id = serializers.UUIDField(source='user.id', read_only=True)
+    user_name = serializers.CharField(source='user.full_name', read_only=True)
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    amount = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CreditTransaction
+        fields = [
+            'id', 'user_id', 'user_name', 'user_email', 'credits',
+            'type', 'description', 'balance_after', 'amount', 'created_at',
+        ]
+
+    def get_amount(self, obj):
+        if obj.payment:
+            return obj.payment.amount
+        return None
+
+
+class CreditTransactionAdminOutputSerializer(serializers.ModelSerializer):
+    user_id = serializers.UUIDField(source='user.id', read_only=True)
+    user_name = serializers.CharField(source='user.full_name', read_only=True)
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    amount = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CreditTransaction
+        fields = [
+            'id', 'user_id', 'user_name', 'user_email', 'credits',
+            'type', 'description', 'balance_after', 'amount', 'status',
+            'created_at',
+        ]
+
+    def get_amount(self, obj):
+        if obj.payment:
+            return obj.payment.amount
+        return None
+
+    def get_status(self, obj):
+        if obj.payment:
+            return obj.payment.status
+        return 'success'
