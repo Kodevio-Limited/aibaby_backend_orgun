@@ -105,6 +105,16 @@ STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY', default='')
 STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET', default='')
 STRIPE_PUBLISHABLE_KEY = env('STRIPE_PUBLISHABLE_KEY', default='')
 
+# Image generation model. Defaults to PhotoMaker (prompt-capable, multiple reference images).
+REPLICATE_BABY_MODEL = env('REPLICATE_BABY_MODEL', default='tencentarc/photomaker')
+REPLICATE_BABY_VERSION = env(
+    'REPLICATE_BABY_VERSION',
+    default='ddfc2b08d209f9fa8c1eca692712918bd449f695dabb4a958da31802a9570fe4'
+)
+
+# External services download media files from this base URL (include scheme, no trailing slash).
+BASE_URL = env('BASE_URL', default='http://localhost:8000')
+
 from datetime import timedelta
 
 SIMPLE_JWT = {

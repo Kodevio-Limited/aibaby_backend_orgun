@@ -182,11 +182,17 @@ class PaymentService:
             payment.status = 'succeeded'
             payment.save(update_fields=['status', 'updated_at'])
             if credits > 0:
+                from django.utils import timezone
+                from datetime import timedelta
+                expires_at = None
+                if plan and plan.plan_type != 'lifetime' and plan.duration_days:
+                    expires_at = timezone.now() + timedelta(days=plan.duration_days)
                 self.user.add_credits(
                     credits,
                     transaction_type='purchase',
                     description=f'Credit purchase -- {plan.name if plan else "manual"}',
                     payment=payment,
+                    expires_at=expires_at,
                 )
         return payment
 

@@ -73,8 +73,8 @@ class CreditPlanOutputSerializer(serializers.ModelSerializer):
     class Meta:
         model = CreditPlan
         fields = [
-            'id', 'name', 'price', 'credits', 'features', 'popular',
-            'is_active', 'order', 'created_at', 'updated_at',
+            'id', 'name', 'plan_type', 'price', 'credits', 'duration_days',
+            'features', 'popular', 'is_active', 'order', 'created_at', 'updated_at',
         ]
 
 
@@ -82,8 +82,8 @@ class CreditPlanInputSerializer(serializers.ModelSerializer):
     class Meta:
         model = CreditPlan
         fields = [
-            'name', 'price', 'credits', 'features', 'popular',
-            'is_active', 'order',
+            'name', 'plan_type', 'price', 'credits', 'duration_days',
+            'features', 'popular', 'is_active', 'order',
         ]
 
 
@@ -123,7 +123,7 @@ class CreditTransactionOutputSerializer(serializers.ModelSerializer):
         model = CreditTransaction
         fields = [
             'id', 'user_id', 'user_name', 'user_email', 'credits',
-            'type', 'description', 'balance_after', 'amount', 'created_at',
+            'type', 'description', 'balance_after', 'expires_at', 'amount', 'created_at',
         ]
 
     def get_amount(self, obj):
@@ -143,7 +143,7 @@ class CreditTransactionAdminOutputSerializer(serializers.ModelSerializer):
         model = CreditTransaction
         fields = [
             'id', 'user_id', 'user_name', 'user_email', 'credits',
-            'type', 'description', 'balance_after', 'amount', 'status',
+            'type', 'description', 'balance_after', 'expires_at', 'amount', 'status',
             'created_at',
         ]
 

@@ -50,11 +50,16 @@ def process_baby_generation(baby_image_id):
     baby_image.save(update_fields=['generation_status'])
 
     try:
+        from django.conf import settings
+        base_url = getattr(settings, 'BASE_URL', '').rstrip('/')
+        father_url = f"{base_url}{baby_image.father_photo.url}"
+        mother_url = f"{base_url}{baby_image.mother_photo.url}"
+
         gen_service = GenerationService()
         prediction = gen_service.generate_baby(
             baby_image=baby_image,
-            father_photo_url=baby_image.father_photo.url,
-            mother_photo_url=baby_image.mother_photo.url,
+            father_photo_url=father_url,
+            mother_photo_url=mother_url,
             gender=baby_image.gender,
             prompt_extra=_build_prompt_extra(baby_image),
         )

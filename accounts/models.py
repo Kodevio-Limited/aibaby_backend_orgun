@@ -40,7 +40,7 @@ class User(AbstractUser):
     def __str__(self):
         return self.email
 
-    def add_credits(self, amount, transaction_type='purchase', description='', payment=None):
+    def add_credits(self, amount, transaction_type='purchase', description='', payment=None, expires_at=None):
         self.credits_balance += amount
         self.save(update_fields=['credits_balance'])
         return CreditTransaction.objects.create(
@@ -50,6 +50,7 @@ class User(AbstractUser):
             description=description,
             balance_after=self.credits_balance,
             payment=payment,
+            expires_at=expires_at,
         )
 
 
@@ -91,10 +92,18 @@ class Subscription(models.Model):
 class CreditPlan(models.Model):
     """Credit-pack pricing plans shown to users and managed by admins."""
 
+    PLAN_TYPES = [
+        ('lifetime', 'Lifetime'),
+        ('one_time', 'One Time'),
+        ('subscription', 'Subscription'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
+    plan_type = models.CharField(max_length=20, choices=PLAN_TYPES, default='one_time')
     price = models.DecimalField(max_digits=10, decimal_places=2)
     credits = models.PositiveIntegerField()
+    duration_days = models.PositiveIntegerField(null=True, blank=True, help_text='For non-lifetime plans: how many days until credits expire.')
     features = models.JSONField(default=list, blank=True)
     popular = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
@@ -108,6 +117,9 @@ class CreditPlan(models.Model):
 
     def __str__(self):
         return self.name
+
+    def is_lifetime(self):
+        return self.plan_type == 'lifetime'
 
 
 class Payment(models.Model):
@@ -162,6 +174,7 @@ class CreditTransaction(models.Model):
     type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
     description = models.CharField(max_length=255, blank=True)
     balance_after = models.IntegerField()
+    expires_at = models.DateTimeField(null=True, blank=True, help_text='Expiration date for purchased credits; null means never expires.')
     payment = models.ForeignKey(Payment, null=True, blank=True, on_delete=models.SET_NULL, related_name='credit_transactions')
 
     created_at = models.DateTimeField(auto_now_add=True)

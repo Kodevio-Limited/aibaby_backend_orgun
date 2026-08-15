@@ -1,26 +1,32 @@
 from django.conf import settings
 
-REPLICATE_BABY_MODEL = 'smoosh-sh/baby-mystic'
-REPLICATE_BABY_VERSION = 'ba5ab694a9df055fa469e55eeab162cc288039da0abd8b19d956980cc3b49f6d'
-REPLICATE_BABY_PROVIDER = 'replicate:smoosh-sh/baby-mystic'
+# Default model: PhotoMaker (supports prompt + multiple reference images).
+REPLICATE_BABY_MODEL = getattr(settings, 'REPLICATE_BABY_MODEL', 'tencentarc/photomaker')
+REPLICATE_BABY_VERSION = getattr(
+    settings,
+    'REPLICATE_BABY_VERSION',
+    'ddfc2b08d209f9fa8c1eca692712918bd449f695dabb4a958da31802a9570fe4'
+)
+REPLICATE_BABY_PROVIDER = f'replicate:{REPLICATE_BABY_MODEL}:{REPLICATE_BABY_VERSION}'
+
+# Legacy model that only accepts two images + gender.
+REPLICATE_BABY_MODEL_LEGACY = 'smoosh-sh/baby-mystic'
+REPLICATE_BABY_VERSION_LEGACY = 'ba5ab694a9df055fa469e55eeab162cc288039da0abd8b19d956980cc3b49f6d'
 
 
 class GenerationService:
     def __init__(self):
         import replicate
         self.client = replicate.Client(api_token=settings.REPLICATE_API_TOKEN)
+        self.model = REPLICATE_BABY_MODEL
+        self.version = REPLICATE_BABY_VERSION
 
     def _get_active_prompt(self):
         from ..models import GenerationPrompt
         return GenerationPrompt.objects.filter(status='active').order_by('-created_at').first()
 
     def build_prompt(self, baby_image=None, gender=None, age_stage=None, background=None, outfit=None, template=None, prompt_extra=''):
-        """Assemble the final prompt text from the active admin prompt + user-selected template.
-
-        NOTE: the current Replicate model (smoosh-sh/baby-mystic) does not accept a prompt
-        string input. The assembled text is stored on BabyImage.generation_prompt_text for
-        auditing and will be passed to any future model that supports a prompt parameter.
-        """
+        """Assemble the final prompt text from the active admin prompt + user-selected template."""
         active_prompt = self._get_active_prompt()
         base = active_prompt.content if active_prompt else 'a realistic photo of a baby, natural lighting'
 
@@ -36,7 +42,6 @@ class GenerationService:
 
         prompt = '. '.join(filter(None, parts))
 
-        # Replace placeholders with generation parameters if present.
         replacements = {
             '{gender}': gender or '',
             '{age_stage}': age_stage or '',
@@ -46,7 +51,6 @@ class GenerationService:
         for key, value in replacements.items():
             prompt = prompt.replace(key, value)
 
-        # Build negative prompt similarly.
         negative_parts = []
         if active_prompt and active_prompt.negative_prompt:
             negative_parts.append(active_prompt.negative_prompt)
@@ -55,6 +59,28 @@ class GenerationService:
         negative_prompt = ', '.join(filter(None, negative_parts))
 
         return prompt, negative_prompt
+
+    def _photomaker_style(self, template):
+        """Map template theme/background to a PhotoMaker style name when possible."""
+        if not template:
+            return 'Photographic (Default)'
+        theme = (template.theme or '').lower()
+        style_map = {
+            'cinematic': 'Cinematic',
+            'disney': 'Disney Charactor',
+            'digital art': 'Digital Art',
+            'photographic': 'Photographic (Default)',
+            'fantasy': 'Fantasy art',
+            'neonpunk': 'Neonpunk',
+            'enhance': 'Enhance',
+            'comic': 'Comic book',
+            'lowpoly': 'Lowpoly',
+            'line art': 'Line art',
+        }
+        for key, value in style_map.items():
+            if key in theme:
+                return value
+        return 'Photographic (Default)'
 
     def generate_baby(self, baby_image, father_photo_url, mother_photo_url, gender=None, prompt_extra=''):
         template = baby_image.generation_template
@@ -72,28 +98,23 @@ class GenerationService:
         baby_image.generation_prompt_text = prompt_text
         baby_image.save(update_fields=['generation_prompt_text'])
 
+        # PhotoMaker expects the trigger word "img" somewhere in the prompt.
+        if ' img' not in prompt_text.lower():
+            prompt_text = f'{prompt_text} img'
+
         input_data = {
-            'image': father_photo_url,
-            'image2': mother_photo_url,
+            'input_image': father_photo_url,
+            'input_image2': mother_photo_url,
+            'prompt': prompt_text,
+            'negative_prompt': negative_prompt or 'nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry',
+            'num_steps': 20,
+            'num_outputs': 1,
+            'style_name': self._photomaker_style(template),
+            'disable_safety_checker': True,
         }
-        if gender in ('boy', 'girl'):
-            input_data['gender'] = gender
-
-        if template:
-            if template.seed is not None:
-                input_data['seed'] = template.seed
-            if template.high_quality_rendering:
-                input_data['steps'] = 50
-            elif template.enhance_lighting:
-                input_data['steps'] = 35
-
-        # The current model does not support prompt/negative_prompt inputs, so we do not
-        # include them in the request. They are stored on the BabyImage record for audit.
-        # input_data['prompt'] = prompt_text
-        # input_data['negative_prompt'] = negative_prompt
 
         prediction = self.client.predictions.create(
-            version=REPLICATE_BABY_VERSION,
+            version=self.version,
             input=input_data,
         )
         return prediction
