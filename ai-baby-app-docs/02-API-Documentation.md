@@ -148,6 +148,33 @@ Frontend should poll this every 2–3 seconds after any generation call until
 
 ---
 
+## Subscriptions / Credits
+
+### 20. GET `/api/subscriptions/plans/`
+**Response:** `{ "data": [ { "id": "uuid", "name": "...", "price": 9.99, "credits": 100, ... } ] }`
+Lists active `CreditPlan` records.
+
+### 21. POST `/api/subscriptions/checkout/`
+**Body:** `{ "plan_id": "uuid", "provider": "stripe|test" }`
+**Response:** `{ "data": { "payment_id": "uuid", "client_secret": "...", "provider": "stripe", "amount": 9.99, "currency": "USD" } }`
+Creates a pending `Payment`. When Stripe is configured it returns a `client_secret`; otherwise it returns a test `payment_id`.
+
+### 22. POST `/api/subscriptions/confirm/`
+**Body:** `{ "payment_id": "uuid" }`
+**Response:** `{ "data": { ...Payment object... } }`
+Marks the payment as succeeded and credits the user's balance. Mainly used for test/manual confirmation; production confirmation normally happens via the webhook.
+
+### 23. GET `/api/subscriptions/my-transactions/`
+**Response:** paginated list of `CreditTransaction` records.
+
+### 24. GET `/api/subscriptions/balance/`
+**Response:** `{ "data": { "credits_balance": 100 } }`
+
+### 25. POST `/api/subscriptions/webhook/`
+Payment-provider webhook. Supports Stripe `payment_intent.succeeded` when `STRIPE_WEBHOOK_SECRET` is configured.
+
+---
+
 ## Admin endpoints (require Django staff user)
 
 | # | Method | Path | Notes |
@@ -164,14 +191,14 @@ Frontend should poll this every 2–3 seconds after any generation call until
 | A10 | POST | `/api/admin/moderation/{id}/rescan/` | re-queue scan task |
 | A11 | GET | `/api/admin/moderation/stats/` | scan stats |
 | A12 | GET/PUT | `/api/admin/moderation/settings/` | safety settings singleton |
+| A13 | GET/POST | `/api/admin/billing/credit-plans/` | list / create credit plans |
+| A14 | GET/PATCH/DELETE | `/api/admin/billing/credit-plans/{id}/` | detail / update / delete |
+| A15 | GET | `/api/admin/billing/transactions/` | list credit transactions |
 
 ---
 
 ## Endpoints intentionally not built yet (flagged for future, not missing)
 
-- `POST /api/subscriptions/subscribe/` — payment integration, once you pick
-  a payment gateway (Stripe/etc). `SubscriptionPlan` and `Subscription`
-  models already support this without further migration.
 - `GET /api/baby-images/{id}/` (single detail) — likely needed by the
   frontend for a "share/view" screen; trivial to add, same serializer as
   the status endpoint.

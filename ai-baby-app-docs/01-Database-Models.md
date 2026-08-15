@@ -173,6 +173,20 @@ Verification record for uploaded father/mother photos. A Celery task updates per
 
 Singleton moderation configuration exposed in the admin panel.
 
+## Payment / credit models
+
+### `CreditPlan`
+
+Admin-managed credit packs shown to users for purchase (`name`, `price`, `credits`, `features`, `popular`, `is_active`).
+
+### `Payment`
+
+Record of a payment attempt from any provider (`provider`, `provider_payment_id`, `amount`, `status`, `metadata`).
+
+### `CreditTransaction`
+
+Ledger entry for credit changes (`purchase`, `usage`, `bonus`, `refund`) linked to a user and optionally to a `Payment`.
+
 ## Design notes
 
 - **Why one `BabyImage` model instead of six tables:** every "action"
