@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/auth/', include('accounts.urls')),
     path('api/baby-images/', include('babies.urls')),
     path('api/profile/', include('accounts.profile_urls')),
+    path('api/admin/', include('babies.admin_urls')),
 ]
 
 if settings.DEBUG:

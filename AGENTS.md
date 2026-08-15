@@ -36,15 +36,27 @@
 
 ## Async generation flow
 
-1. View creates `BabyImage` row (`status=pending`), dispatches Celery task via `.delay()`
-2. Task sets `status=processing` → calls Replicate/fal.ai → polls until done → saves image → runs local similarity scoring → sets `status=done`
-3. Client polls `GET /api/baby-images/{id}/status/` every 2-3s
+1. User uploads father + mother photos to `POST /api/baby-images/parent-photo-scans/`.
+2. Celery task scans both photos (face detection + duplicate check; NSFW skipped for now).
+3. Only scans with `overall_status = approved` (`Clean`) may proceed to generation.
+4. Client calls a generation endpoint with `parent_photo_scan_id` and optional `template_id`.
+5. View creates `BabyImage` row (`status=pending`), dispatches Celery task via `.delay()`.
+6. Task sets `status=processing` → calls Replicate/fal.ai → polls until done → saves image → runs local similarity scoring → sets `status=done`.
+7. Client polls `GET /api/baby-images/{id}/status/` every 2–3s.
+
+## Admin resources
+
+- `GenerationPrompt` — admin-managed prompt text. One `active` prompt is used by default.
+- `GenerationTemplate` — admin-managed template with background image + prompt text. Users pick one active template per generation.
+- `ParentPhotoScan` — verification record for uploaded father/mother photos.
+- `SafetySettings` — singleton moderation configuration.
 
 ## Generation rules
 
 - **Age-chain**: `change_age`/`change_outfit` must walk the `parent_image` chain back to root (`generation_type='initial'` or `'age_stage'`) to find original father/mother photos — never regenerate from a previously-generated image (prevents quality degradation).
 - **Similarity scoring is local** — `face_recognition` (dlib, MIT license) + OpenCV in the Celery worker. No external API. Eyes/face-shape use `face_landmarks()` cropping for targeted comparison.
-- **Prompt building**: gender → "baby boy"/"baby girl", age_stage → "newborn baby"/"6 month old baby", background → "studio background"/"at home"/"outdoors in nature", outfit → appended when set.
+- **Prompt building**: the active `GenerationPrompt.content` is combined with the user-selected `GenerationTemplate.ai_prompt`. Placeholders `{gender}`, `{age_stage}`, `{background}`, `{outfit}` are replaced. The assembled text is stored on `BabyImage.generation_prompt_text`. Note: the current Replicate model (`smoosh-sh/baby-mystic`) does not accept a prompt string input; only `image`, `image2`, `gender`, `seed`, `steps`, `width`, `height` are sent. If prompt text needs to influence the image, switch to a prompt-capable model or add a second processing step.
+- **Parent-photo verification**: only `approved` (`Clean`) scans can start generation. `rejected` scans block generation.
 
 ## Auth
 
@@ -60,20 +72,40 @@
 | 3 | POST | `/auth/forgot-password/` | sends 6-digit OTP |
 | 4 | POST | `/auth/verify-otp/` | returns `reset_token` |
 | 5 | POST | `/auth/reset-password/` | requires `reset_token` |
-| 6 | POST | `/baby-images/generate/` | multipart, dispatches Celery |
-| 7 | POST | `/baby-images/generate-with-options/` | |
-| 8 | POST | `/baby-images/{id}/change-age/` | |
-| 9 | POST | `/baby-images/{id}/change-outfit/` | |
-| 10 | POST | `/baby-images/{id}/generate-high-res/` | |
-| 11 | POST | `/baby-images/generate-timeline/` | |
-| 12 | GET | `/baby-images/?filter=favorite` | |
-| 13 | GET | `/baby-images/?filter=history` | |
-| 14 | PATCH | `/profile/` | |
-| 15 | PATCH | `/profile/change-password/` | |
-| 16 | POST | `/auth/logout/` | blacklists refresh token |
-| 17 | PATCH | `/profile/picture/` | multipart |
-| 18 | GET | `/baby-images/{id}/status/` | polling endpoint |
+| 6 | POST | `/baby-images/parent-photo-scans/` | multipart upload, starts scan task |
+| 7 | GET | `/baby-images/parent-photo-scans/{id}/` | scan status |
+| 8 | GET | `/baby-images/templates/active/` | list active user templates |
+| 9 | POST | `/baby-images/generate/` | JSON: `parent_photo_scan_id`, `template_id` |
+| 10 | POST | `/baby-images/generate-with-options/` | JSON: `parent_photo_scan_id`, `template_id`, `gender`, `age_stage`, `background` |
+| 11 | POST | `/baby-images/{id}/change-age/` | |
+| 12 | POST | `/baby-images/{id}/change-outfit/` | |
+| 13 | POST | `/baby-images/{id}/generate-high-res/` | |
+| 14 | POST | `/baby-images/generate-timeline/` | JSON: `parent_photo_scan_id`, `template_id`, `timeline` |
+| 15 | GET | `/baby-images/?filter=favorite` | |
+| 16 | GET | `/baby-images/?filter=history` | |
+| 17 | PATCH | `/profile/` | |
+| 18 | PATCH | `/profile/change-password/` | |
+| 19 | POST | `/auth/logout/` | blacklists refresh token |
+| 20 | PATCH | `/profile/picture/` | multipart |
+| 21 | GET | `/baby-images/{id}/status/` | polling endpoint |
 | — | GET | `/api/health/` | unauthenticated, required for deploy |
+
+### Admin endpoints (require Django staff user)
+
+| # | Method | Path | Notes |
+|---|--------|------|-------|
+| A1 | GET/POST | `/api/admin/prompts/` | list / create prompts |
+| A2 | GET/PATCH/DELETE | `/api/admin/prompts/{id}/` | detail / update / delete |
+| A3 | POST | `/api/admin/prompts/{id}/duplicate/` | duplicate prompt |
+| A4 | GET/POST | `/api/admin/templates/` | list / create templates (multipart) |
+| A5 | GET/PATCH/DELETE | `/api/admin/templates/{id}/` | detail / update / delete |
+| A6 | POST | `/api/admin/templates/{id}/duplicate/` | duplicate template |
+| A7 | GET | `/api/admin/moderation/` | list parent-photo scans |
+| A8 | GET/PATCH/DELETE | `/api/admin/moderation/{id}/` | detail / update / delete |
+| A9 | POST | `/api/admin/moderation/{id}/reset/` | delete photos, clear scan result |
+| A10 | POST | `/api/admin/moderation/{id}/rescan/` | re-queue scan task |
+| A11 | GET | `/api/admin/moderation/stats/` | scan stats |
+| A12 | GET/PUT | `/api/admin/moderation/settings/` | safety settings singleton |
 
 ## Env vars
 
@@ -91,9 +123,13 @@ CORS_ALLOWED_ORIGINS=  # production only
 
 - `generation_type`: initial, age_stage, timeline, age_change, outfit_change, high_res
 - `parent_image`: FK to self (null for initial generations)
-- `father_photo`, `mother_photo`: original uploads (InputField)
+- `father_photo`, `mother_photo`: original uploads (copied from the approved `ParentPhotoScan`)
 - `generated_image`, `high_res_image`: outputs
 - `gender`, `age_stage`, `background`, `outfit`, `timeline`: generation params
+- `generation_prompt`: FK to `GenerationPrompt` (admin-managed)
+- `generation_template`: FK to `GenerationTemplate` (user-selected / admin-managed)
+- `parent_photo_scan`: FK to `ParentPhotoScan` (the verified source photos)
+- `generation_prompt_text`: assembled prompt text stored for audit
 - `eyes_similarity`, `face_shape_similarity`, `skin_tone_similarity`: similarity scores
 - `ai_provider`, `external_job_id`: tracking
 - `generation_status`: pending, processing, done, failed

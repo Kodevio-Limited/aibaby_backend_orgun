@@ -2,6 +2,8 @@ from celery import shared_task
 from .models import BabyImage
 from .services.generation_service import GenerationService, REPLICATE_BABY_PROVIDER
 from .services.similarity_service import SimilarityService
+from .services.scan_service import ScanService
+from .services.parent_photo_scan_service import ParentPhotoScanService
 
 
 def _download_and_save(image_url):
@@ -32,6 +34,16 @@ def _build_prompt_extra(baby_image):
 
 
 @shared_task
+def process_parent_photo_scan(scan_id):
+    from .models import ParentPhotoScan
+    try:
+        scan = ParentPhotoScan.objects.get(id=scan_id)
+        ScanService().run_scan(scan)
+    except ParentPhotoScan.DoesNotExist:
+        pass
+
+
+@shared_task
 def process_baby_generation(baby_image_id):
     baby_image = BabyImage.objects.get(id=baby_image_id)
     baby_image.generation_status = 'processing'
@@ -40,6 +52,7 @@ def process_baby_generation(baby_image_id):
     try:
         gen_service = GenerationService()
         prediction = gen_service.generate_baby(
+            baby_image=baby_image,
             father_photo_url=baby_image.father_photo.url,
             mother_photo_url=baby_image.mother_photo.url,
             gender=baby_image.gender,

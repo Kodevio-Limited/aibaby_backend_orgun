@@ -1,4 +1,4 @@
-from ..models import BabyImage
+from ..models import BabyImage, GenerationTemplate
 from ..tasks import process_baby_generation
 
 
@@ -6,12 +6,23 @@ class BabyImageService:
     def __init__(self, user):
         self.user = user
 
-    def create_generation(self, father_photo, mother_photo, **extra_fields):
+    def create_generation(self, parent_photo_scan_id, template_id, **extra_fields):
+        from ..services.parent_photo_scan_service import ParentPhotoScanService
+        scan_service = ParentPhotoScanService(user=self.user)
+        scan = scan_service.get_clean_scan(parent_photo_scan_id)
+
+        template = None
+        if template_id:
+            template = GenerationTemplate.objects.get(id=template_id, status='active')
+
+        generation_type = extra_fields.pop('generation_type', 'initial')
         baby_image = BabyImage.objects.create(
             user=self.user,
-            generation_type=extra_fields.pop('generation_type', 'initial'),
-            father_photo=father_photo,
-            mother_photo=mother_photo,
+            generation_type=generation_type,
+            father_photo=scan.father_photo,
+            mother_photo=scan.mother_photo,
+            parent_photo_scan=scan,
+            generation_template=template,
             **extra_fields,
         )
         process_baby_generation.delay(str(baby_image.id))
@@ -44,6 +55,7 @@ class BabyImageService:
             gender=parent.gender,
             age_stage=parent.age_stage,
             background=parent.background,
+            generation_template=parent.generation_template,
             **extra_fields,
         )
         process_baby_generation.delay(str(baby_image.id))

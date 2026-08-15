@@ -41,29 +41,42 @@ password reset with just an email, always require this verified token.
 
 ## Baby Generation
 
-### 6. POST `/api/baby-images/generate/`
+### 6. POST `/api/baby-images/parent-photo-scans/`
 **Body (multipart):** `father_photo`, `mother_photo`
-**Response:** `{ "data": { "id": "uuid", "status": "pending" } }`
-Creates a `BabyImage` row (`generation_type=initial`), dispatches Celery
-task. Client polls endpoint #18 for the result.
+**Response:** `{ "data": { "id": "uuid", "overall_status": "pending" } }`
+Creates a `ParentPhotoScan` row and dispatches a Celery task to verify the
+photos. Client polls endpoint #7.
 
-### 7. POST `/api/baby-images/generate-with-options/`
-**Body (multipart):** `father_photo`, `mother_photo`, `gender`, `age_stage`, `background`
+### 7. GET `/api/baby-images/parent-photo-scans/{id}/`
+**Response:** `{ "data": { "id": "uuid", "overall_status": "approved|rejected", "scan_result": "Clean|No Face Detected|Duplicate|...", ... } }`
+
+### 8. GET `/api/baby-images/templates/active/`
+**Response:** `{ "data": [ { "id": "uuid", "name": "...", "background": "..." } ] }`
+Lists active `GenerationTemplate` records the user can choose from.
+
+### 9. POST `/api/baby-images/generate/`
+**Body (JSON):** `parent_photo_scan_id`, optional `template_id`
+**Response:** `{ "data": { "id": "uuid", "status": "pending" } }`
+Creates a `BabyImage` row (`generation_type=initial`), dispatches Celery task.
+Requires the scan to have `overall_status=approved`.
+
+### 10. POST `/api/baby-images/generate-with-options/`
+**Body (JSON):** `parent_photo_scan_id`, optional `template_id`, `gender`, `age_stage`, `background`
 **Response:** `{ "data": { "id": "uuid", "status": "pending" } }`
 Same as above, `generation_type=age_stage`.
 
-### 8. POST `/api/baby-images/{id}/change-age/`
+### 11. POST `/api/baby-images/{id}/change-age/`
 **Body:** `{ "age_stage": "" }`
 **Response:** `{ "data": { "id": "new-uuid", "status": "pending" } }`
 Uses `{id}` as `parent_image`. Regenerates using the *original* father/mother
 photos stored on the root of the chain (see Implementation Guide) at the
 new age stage.
 
-### 9. POST `/api/baby-images/{id}/change-outfit/`
+### 12. POST `/api/baby-images/{id}/change-outfit/`
 **Body:** `{ "outfit": "" }`
 **Response:** `{ "data": { "id": "new-uuid", "status": "pending" } }`
 
-### 10. POST `/api/baby-images/{id}/generate-high-res/`
+### 13. POST `/api/baby-images/{id}/generate-high-res/`
 **Body:** `{}` (uses `{id}`'s generated image as input)
 **Response:** `{ "data": { "id": "new-uuid", "status": "pending" } }`
 
@@ -71,20 +84,9 @@ new age stage.
 
 ## Timeline
 
-### 11. POST `/api/baby-images/generate-timeline/`
-**Body (multipart):** `father_photo`, `mother_photo`, `timeline`
-**Response (once done, via status endpoint):**
-```json
-{
-  "data": {
-    "id": "uuid",
-    "generated_image": "https://.../image.jpg",
-    "eyes_similarity": 72.4,
-    "face_shape_similarity": 65.1,
-    "skin_tone_similarity": 88.0
-  }
-}
-```
+### 14. POST `/api/baby-images/generate-timeline/`
+**Body (JSON):** `parent_photo_scan_id`, optional `template_id`, `timeline`
+**Response (once done, via status endpoint):** same as status endpoint #18.
 
 ---
 
@@ -101,24 +103,24 @@ newest first.
 
 ## Profile
 
-### 14. PATCH `/api/profile/`
+### 15. PATCH `/api/profile/`
 **Body:** `{ "full_name": "", "email": "" }`
 
-### 15. PATCH `/api/profile/change-password/`
+### 16. PATCH `/api/profile/change-password/`
 **Body:** `{ "current_password": "", "new_password": "", "confirm_password": "" }`
 
-### 16. POST `/api/auth/logout/`
+### 17. POST `/api/auth/logout/`
 **Body:** `{ "refresh": "" }`
 Blacklists the refresh token.
 
-### 17. PATCH `/api/profile/picture/`
+### 18. PATCH `/api/profile/picture/`
 **Body (multipart):** `profile_picture`
 
 ---
 
-## Status Polling (new — required for async generation)
+## Status Polling (required for async generation)
 
-### 18. GET `/api/baby-images/{id}/status/`
+### 19. GET `/api/baby-images/{id}/status/`
 **Response (pending/processing):**
 ```json
 { "data": { "id": "uuid", "status": "processing" } }
@@ -143,6 +145,25 @@ Blacklists the refresh token.
 
 Frontend should poll this every 2–3 seconds after any generation call until
 `status` is `done` or `failed`.
+
+---
+
+## Admin endpoints (require Django staff user)
+
+| # | Method | Path | Notes |
+|---|--------|------|-------|
+| A1 | GET/POST | `/api/admin/prompts/` | list / create prompts |
+| A2 | GET/PATCH/DELETE | `/api/admin/prompts/{id}/` | detail / update / delete |
+| A3 | POST | `/api/admin/prompts/{id}/duplicate/` | duplicate prompt |
+| A4 | GET/POST | `/api/admin/templates/` | list / create templates (multipart) |
+| A5 | GET/PATCH/DELETE | `/api/admin/templates/{id}/` | detail / update / delete |
+| A6 | POST | `/api/admin/templates/{id}/duplicate/` | duplicate template |
+| A7 | GET | `/api/admin/moderation/` | list parent-photo scans |
+| A8 | GET/PATCH/DELETE | `/api/admin/moderation/{id}/` | detail / update / delete |
+| A9 | POST | `/api/admin/moderation/{id}/reset/` | delete photos, clear scan result |
+| A10 | POST | `/api/admin/moderation/{id}/rescan/` | re-queue scan task |
+| A11 | GET | `/api/admin/moderation/stats/` | scan stats |
+| A12 | GET/PUT | `/api/admin/moderation/settings/` | safety settings singleton |
 
 ---
 

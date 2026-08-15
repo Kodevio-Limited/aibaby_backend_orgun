@@ -1,14 +1,50 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, ValidationError
 from .serializers import (
     BabyImageGenerateSerializer, BabyImageGenerateWithOptionsSerializer,
     ChangeAgeSerializer, ChangeOutfitSerializer, GenerateTimelineSerializer,
     BabyImageOutputSerializer, BabyImageListSerializer,
+    ParentPhotoScanUploadSerializer, ParentPhotoScanOutputSerializer,
 )
 from .models import BabyImage
 from .services.baby_image_service import BabyImageService
+from .services.parent_photo_scan_service import ParentPhotoScanService
 from core.pagination import StandardPagination
+
+
+class ParentPhotoScanUploadView(APIView):
+    def post(self, request):
+        serializer = ParentPhotoScanUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            service = ParentPhotoScanService(user=request.user)
+            scan = service.create_scan(
+                father_photo=serializer.validated_data['father_photo'],
+                mother_photo=serializer.validated_data['mother_photo'],
+            )
+        except Exception as e:
+            return Response(
+                {'detail': 'Could not start photo scan', 'code': 'SCAN_START_FAILED'},
+                status=502,
+            )
+
+        return Response(
+            {'data': ParentPhotoScanOutputSerializer(scan, context={'request': request}).data},
+            status=201,
+        )
+
+
+class ParentPhotoScanStatusView(APIView):
+    def get(self, request, pk):
+        try:
+            service = ParentPhotoScanService(user=request.user)
+            scan = service.get_scan(pk)
+        except ParentPhotoScan.DoesNotExist:
+            raise NotFound('Scan not found.')
+
+        return Response({'data': ParentPhotoScanOutputSerializer(scan, context={'request': request}).data})
 
 
 class GenerateBabyView(APIView):
@@ -20,7 +56,13 @@ class GenerateBabyView(APIView):
             service = BabyImageService(user=request.user)
             baby_image = service.create_generation(
                 generation_type='initial',
-                **serializer.validated_data,
+                parent_photo_scan_id=serializer.validated_data['parent_photo_scan_id'],
+                template_id=serializer.validated_data.get('template_id'),
+            )
+        except ValueError as e:
+            return Response(
+                {'detail': str(e), 'code': 'PHOTOS_NOT_APPROVED'},
+                status=400,
             )
         except Exception as e:
             return Response(
@@ -41,9 +83,19 @@ class GenerateBabyWithOptionsView(APIView):
 
         try:
             service = BabyImageService(user=request.user)
+            data = serializer.validated_data
             baby_image = service.create_generation(
                 generation_type='age_stage',
-                **serializer.validated_data,
+                parent_photo_scan_id=data['parent_photo_scan_id'],
+                template_id=data.get('template_id'),
+                gender=data['gender'],
+                age_stage=data['age_stage'],
+                background=data['background'],
+            )
+        except ValueError as e:
+            return Response(
+                {'detail': str(e), 'code': 'PHOTOS_NOT_APPROVED'},
+                status=400,
             )
         except Exception as e:
             return Response(
@@ -138,11 +190,17 @@ class GenerateTimelineView(APIView):
 
         try:
             service = BabyImageService(user=request.user)
+            data = serializer.validated_data
             baby_image = service.create_generation(
                 generation_type='timeline',
-                timeline=serializer.validated_data['timeline'],
-                father_photo=serializer.validated_data['father_photo'],
-                mother_photo=serializer.validated_data['mother_photo'],
+                parent_photo_scan_id=data['parent_photo_scan_id'],
+                template_id=data.get('template_id'),
+                timeline=data['timeline'],
+            )
+        except ValueError as e:
+            return Response(
+                {'detail': str(e), 'code': 'PHOTOS_NOT_APPROVED'},
+                status=400,
             )
         except Exception as e:
             return Response(
@@ -177,7 +235,7 @@ class BabyImageListView(APIView):
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(qs, request)
         serializer = BabyImageListSerializer(page, many=True, context={'request': request})
-        return paginator.get_paginated_response({'data': serializer.data})
+        return paginator.get_paginated_response(serializer.data)
 
 
 class ToggleFavoriteView(APIView):
@@ -191,3 +249,14 @@ class ToggleFavoriteView(APIView):
         return Response({
             'data': BabyImageOutputSerializer(baby_image, context={'request': request}).data
         })
+
+
+class ActiveTemplateListView(APIView):
+    """Public-ish endpoint for users to pick an active generation template."""
+
+    def get(self, request):
+        from .models import GenerationTemplate
+        from .serializers import GenerationTemplateListSerializer
+        qs = GenerationTemplate.objects.filter(status='active')
+        serializer = GenerationTemplateListSerializer(qs, many=True, context={'request': request})
+        return Response({'data': serializer.data})

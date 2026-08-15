@@ -3,7 +3,8 @@ from .views import (
     GenerateBabyView, GenerateBabyWithOptionsView,
     ChangeAgeView, ChangeOutfitView, GenerateHighResView,
     GenerateTimelineView, BabyImageStatusView, BabyImageListView,
-    ToggleFavoriteView,
+    ToggleFavoriteView, ParentPhotoScanUploadView, ParentPhotoScanStatusView,
+    ActiveTemplateListView,
 )
 
 urlpatterns = [
@@ -16,4 +17,7 @@ urlpatterns = [
     path('<uuid:pk>/change-outfit/', ChangeOutfitView.as_view(), name='change-outfit'),
     path('<uuid:pk>/generate-high-res/', GenerateHighResView.as_view(), name='generate-high-res'),
     path('<uuid:pk>/favorite/', ToggleFavoriteView.as_view(), name='toggle-favorite'),
+    path('parent-photo-scans/', ParentPhotoScanUploadView.as_view(), name='parent-photo-scan-upload'),
+    path('parent-photo-scans/<uuid:pk>/', ParentPhotoScanStatusView.as_view(), name='parent-photo-scan-status'),
+    path('templates/active/', ActiveTemplateListView.as_view(), name='active-templates'),
 ]

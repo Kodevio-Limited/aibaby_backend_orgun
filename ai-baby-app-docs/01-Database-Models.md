@@ -121,6 +121,11 @@ class BabyImage(models.Model):
     outfit = models.CharField(max_length=50, null=True, blank=True)
     timeline = models.CharField(max_length=20, null=True, blank=True)
 
+    generation_prompt = models.ForeignKey('GenerationPrompt', null=True, blank=True, on_delete=models.SET_NULL)
+    generation_template = models.ForeignKey('GenerationTemplate', null=True, blank=True, on_delete=models.SET_NULL)
+    parent_photo_scan = models.ForeignKey('ParentPhotoScan', null=True, blank=True, on_delete=models.SET_NULL)
+    generation_prompt_text = models.TextField(blank=True)
+
     generated_image = models.ImageField(upload_to='generated/', null=True, blank=True)
     high_res_image = models.ImageField(upload_to='generated/highres/', null=True, blank=True)
 
@@ -149,6 +154,24 @@ class BabyImage(models.Model):
     def __str__(self):
         return f'{self.generation_type} — {self.id}'
 ```
+
+## New admin / verification models
+
+### `GenerationPrompt`
+
+Admin-managed prompt text. The active prompt is combined with the user-selected `GenerationTemplate.ai_prompt` at generation time.
+
+### `GenerationTemplate`
+
+Admin-managed template with a background image, template prompt, and rendering flags. Users choose one active template per generation.
+
+### `ParentPhotoScan`
+
+Verification record for uploaded father/mother photos. A Celery task updates per-photo statuses and `overall_status` (`approved` only when both photos are clean).
+
+### `SafetySettings`
+
+Singleton moderation configuration exposed in the admin panel.
 
 ## Design notes
 
