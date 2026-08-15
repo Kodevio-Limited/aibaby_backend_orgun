@@ -97,6 +97,16 @@ CELERY_RESULT_BACKEND = env('REDIS_URL', default='redis://localhost:6379/0')
 
 # Single image-generation API key — see 03-Implementation-Guide.md
 REPLICATE_API_TOKEN = env('REPLICATE_API_TOKEN')
+
+# Default image generation model: PhotoMaker supports prompts + multiple reference images.
+REPLICATE_BABY_MODEL = env('REPLICATE_BABY_MODEL', default='tencentarc/photomaker')
+REPLICATE_BABY_VERSION = env(
+    'REPLICATE_BABY_VERSION',
+    default='ddfc2b08d209f9fa8c1eca692712918bd449f695dabb4a958da31802a9570fe4'
+)
+
+# Public origin used by Celery tasks when building absolute media URLs for providers.
+BASE_URL = env('BASE_URL', default='http://localhost:8000')
 ```
 
 ## settings/development.py

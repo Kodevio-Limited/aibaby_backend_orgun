@@ -19,6 +19,8 @@ replicate
 requests
 stripe
 
+# face_recognition uses pkg_resources; setuptools 70+ removed it.
+setuptools<70
 dlib-bin
 face_recognition
 opencv-python-headless

@@ -25,6 +25,13 @@ class UserAdmin(BaseUserAdmin):
 admin.site.register(SubscriptionPlan)
 admin.site.register(Subscription)
 admin.site.register(OTP)
-admin.site.register(CreditPlan)
+@admin.register(CreditPlan)
+class CreditPlanAdmin(admin.ModelAdmin):
+    list_display = ('name', 'plan_type', 'price', 'credits', 'duration_days', 'popular', 'is_active', 'order')
+    list_filter = ('plan_type', 'is_active', 'popular')
+    search_fields = ('name',)
+    ordering = ('order', '-created_at')
+
+
 admin.site.register(Payment)
 admin.site.register(CreditTransaction)

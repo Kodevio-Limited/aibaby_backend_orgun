@@ -177,7 +177,7 @@ Singleton moderation configuration exposed in the admin panel.
 
 ### `CreditPlan`
 
-Admin-managed credit packs shown to users for purchase (`name`, `price`, `credits`, `features`, `popular`, `is_active`).
+Admin-managed credit packs shown to users for purchase (`name`, `plan_type`, `price`, `credits`, `duration_days`, `features`, `popular`, `is_active`). `plan_type` can be `lifetime`, `one_time`, or `subscription`; `duration_days` is ignored for `lifetime`.
 
 ### `Payment`
 
@@ -185,7 +185,7 @@ Record of a payment attempt from any provider (`provider`, `provider_payment_id`
 
 ### `CreditTransaction`
 
-Ledger entry for credit changes (`purchase`, `usage`, `bonus`, `refund`) linked to a user and optionally to a `Payment`.
+Ledger entry for credit changes (`purchase`, `usage`, `bonus`, `refund`) linked to a user and optionally to a `Payment`. `expires_at` records when purchased credits expire (null means never expires).
 
 ## Design notes
 

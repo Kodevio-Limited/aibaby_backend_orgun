@@ -189,9 +189,15 @@ def get_root_photos(baby_image):
 
 ```
 REPLICATE_API_TOKEN=            # the single image-gen API key
+REPLICATE_BABY_MODEL=tencentarc/photomaker
+REPLICATE_BABY_VERSION=ddfc2b08d209f9fa8c1eca692712918bd449f695dabb4a958da31802a9570fe4
 SECRET_KEY=
 DATABASE_URL=
 REDIS_URL=
+BASE_URL=https://api.example.com    # public origin; tasks use this for provider image URLs
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_PUBLISHABLE_KEY=
 ```
 
 No second API key for similarity — it's fully local.

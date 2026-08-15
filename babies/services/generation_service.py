@@ -122,3 +122,14 @@ class GenerationService:
     def get_prediction_result(self, prediction_id):
         prediction = self.client.predictions.get(prediction_id)
         return prediction
+
+    def wait_for_prediction(self, prediction, timeout=300, poll_interval=1):
+        """Poll Replicate until the prediction completes or fails."""
+        import time
+        terminal_statuses = {'succeeded', 'failed', 'canceled'}
+        elapsed = 0
+        while prediction.status not in terminal_statuses and elapsed < timeout:
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+            prediction = self.client.predictions.get(prediction.id)
+        return prediction

@@ -67,7 +67,7 @@ def process_baby_generation(baby_image_id):
         baby_image.ai_provider = REPLICATE_BABY_PROVIDER
         baby_image.save(update_fields=['external_job_id', 'ai_provider'])
 
-        result = gen_service.client.predictions.wait(prediction)
+        result = gen_service.wait_for_prediction(prediction)
         if result.status != 'succeeded':
             raise Exception(f"Generation failed: {result.error}")
 

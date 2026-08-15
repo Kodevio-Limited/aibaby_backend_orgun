@@ -55,7 +55,9 @@
 
 - **Age-chain**: `change_age`/`change_outfit` must walk the `parent_image` chain back to root (`generation_type='initial'` or `'age_stage'`) to find original father/mother photos — never regenerate from a previously-generated image (prevents quality degradation).
 - **Similarity scoring is local** — `face_recognition` (dlib, MIT license) + OpenCV in the Celery worker. No external API. Eyes/face-shape use `face_landmarks()` cropping for targeted comparison.
-- **Prompt building**: the active `GenerationPrompt.content` is combined with the user-selected `GenerationTemplate.ai_prompt`. Placeholders `{gender}`, `{age_stage}`, `{background}`, `{outfit}` are replaced. The assembled text is stored on `BabyImage.generation_prompt_text`. Note: the current Replicate model (`smoosh-sh/baby-mystic`) does not accept a prompt string input; only `image`, `image2`, `gender`, `seed`, `steps`, `width`, `height` are sent. If prompt text needs to influence the image, switch to a prompt-capable model or add a second processing step.
+- **Prompt building**: the active `GenerationPrompt.content` is combined with the user-selected `GenerationTemplate.ai_prompt`. Placeholders `{gender}`, `{age_stage}`, `{background}`, `{outfit}` are replaced. The assembled text is stored on `BabyImage.generation_prompt_text`.
+- **Default generation model**: `tencentarc/photomaker` on Replicate. It accepts the assembled prompt plus multiple reference images (`input_image`, `input_image2`). Configurable via `REPLICATE_BABY_MODEL` and `REPLICATE_BABY_VERSION`. The legacy `smoosh-sh/baby-mystic` model did not accept prompt text.
+- **Image URLs for providers**: tasks build absolute URLs for father/mother/generated images using `BASE_URL` setting. In production this must be the public origin (e.g. `https://api.example.com`). Local dev default is `http://localhost:8000`.
 - **Parent-photo verification**: only `approved` (`Clean`) scans can start generation. `rejected` scans block generation.
 
 ## Auth
@@ -120,9 +122,12 @@
 
 ```
 REPLICATE_API_TOKEN=
+REPLICATE_BABY_MODEL=tencentarc/photomaker
+REPLICATE_BABY_VERSION=ddfc2b08d209f9fa8c1eca692712918bd449f695dabb4a958da31802a9570fe4
 SECRET_KEY=
 DATABASE_URL=
 REDIS_URL=
+BASE_URL=https://api.example.com
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 STRIPE_PUBLISHABLE_KEY=
@@ -153,9 +158,9 @@ CORS_ALLOWED_ORIGINS=  # production only
 
 ## Payment / credit models
 
-- `CreditPlan`: admin-managed credit packs (`name`, `price`, `credits`, `features`, `popular`, `is_active`)
+- `CreditPlan`: admin-managed credit packs (`name`, `plan_type`, `price`, `credits`, `duration_days`, `features`, `popular`, `is_active`). `plan_type` can be `lifetime`, `one_time`, or `subscription`; `duration_days` is ignored for `lifetime`.
 - `Payment`: record of a payment attempt (`provider`, `provider_payment_id`, `amount`, `status`, `metadata`)
-- `CreditTransaction`: ledger entry for credit changes (`purchase`, `usage`, `bonus`, `refund`)
+- `CreditTransaction`: ledger entry for credit changes (`purchase`, `usage`, `bonus`, `refund`), with optional `expires_at` for time-limited credits.
 
 ## Things that differ from defaults
 
@@ -175,6 +180,18 @@ CORS_ALLOWED_ORIGINS=  # production only
 6. Remaining generation endpoints (7–11)
 7. Library + Profile endpoints (12–17)
 8. Tests — especially failure paths (no face, provider timeout, malformed upload)
+
+## Local end-to-end generation test
+
+A management command is provided for quick verification:
+
+```bash
+# Requires a valid REPLICATE_API_TOKEN. Uses cloudflared to expose localhost so
+# Replicate can download the test parent photos.
+python manage.py test_generation_flow --use-cloudflared
+```
+
+The command downloads two random faces from randomuser.me, creates an approved `ParentPhotoScan`, an active `GenerationPrompt` and `GenerationTemplate`, then creates a `BabyImage` and runs the generation task synchronously.
 
 ## Source of truth
 
