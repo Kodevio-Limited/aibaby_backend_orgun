@@ -88,6 +88,12 @@
 | 19 | POST | `/auth/logout/` | blacklists refresh token |
 | 20 | PATCH | `/profile/picture/` | multipart |
 | 21 | GET | `/baby-images/{id}/status/` | polling endpoint |
+| 22 | GET | `/subscriptions/plans/` | list active credit plans |
+| 23 | POST | `/subscriptions/checkout/` | create payment intent (Stripe/test) |
+| 24 | POST | `/subscriptions/confirm/` | confirm a pending payment (test mode) |
+| 25 | GET | `/subscriptions/my-transactions/` | user credit transaction history |
+| 26 | GET | `/subscriptions/balance/` | user credit balance |
+| 27 | POST | `/subscriptions/webhook/` | payment provider webhook |
 | — | GET | `/api/health/` | unauthenticated, required for deploy |
 
 ### Admin endpoints (require Django staff user)
@@ -106,6 +112,9 @@
 | A10 | POST | `/api/admin/moderation/{id}/rescan/` | re-queue scan task |
 | A11 | GET | `/api/admin/moderation/stats/` | scan stats |
 | A12 | GET/PUT | `/api/admin/moderation/settings/` | safety settings singleton |
+| A13 | GET/POST | `/api/admin/billing/credit-plans/` | list / create credit plans |
+| A14 | GET/PATCH/DELETE | `/api/admin/billing/credit-plans/{id}/` | detail / update / delete |
+| A15 | GET | `/api/admin/billing/transactions/` | list credit transactions |
 
 ## Env vars
 
@@ -114,10 +123,17 @@ REPLICATE_API_TOKEN=
 SECRET_KEY=
 DATABASE_URL=
 REDIS_URL=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_PUBLISHABLE_KEY=
 SENTRY_DSN=           # production only
 ALLOWED_HOSTS=         # production only
 CORS_ALLOWED_ORIGINS=  # production only
 ```
+
+## Key model fields (User)
+
+- `credits_balance`: current credit balance used for generation payments
 
 ## Key model fields (BabyImage)
 
@@ -134,6 +150,12 @@ CORS_ALLOWED_ORIGINS=  # production only
 - `ai_provider`, `external_job_id`: tracking
 - `generation_status`: pending, processing, done, failed
 - `is_favorite`, `is_deleted`: library/soft-delete
+
+## Payment / credit models
+
+- `CreditPlan`: admin-managed credit packs (`name`, `price`, `credits`, `features`, `popular`, `is_active`)
+- `Payment`: record of a payment attempt (`provider`, `provider_payment_id`, `amount`, `status`, `metadata`)
+- `CreditTransaction`: ledger entry for credit changes (`purchase`, `usage`, `bonus`, `refund`)
 
 ## Things that differ from defaults
 

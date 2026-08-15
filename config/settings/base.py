@@ -101,6 +101,10 @@ CELERY_RESULT_SERIALIZER = 'json'
 
 REPLICATE_API_TOKEN = env('REPLICATE_API_TOKEN', default='')
 
+STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY', default='')
+STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET', default='')
+STRIPE_PUBLISHABLE_KEY = env('STRIPE_PUBLISHABLE_KEY', default='')
+
 from datetime import timedelta
 
 SIMPLE_JWT = {

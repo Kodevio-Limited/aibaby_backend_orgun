@@ -11,6 +11,7 @@ urlpatterns = [
     path('api/baby-images/', include('babies.urls')),
     path('api/profile/', include('accounts.profile_urls')),
     path('api/admin/', include('babies.admin_urls')),
+    path('api/admin/billing/', include('accounts.admin_urls')),
 ]
 
 if settings.DEBUG:
