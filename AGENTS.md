@@ -37,12 +37,11 @@
 ## Async generation flow
 
 1. User uploads father + mother photos to `POST /api/baby-images/parent-photo-scans/`.
-2. Celery task scans both photos (face detection + duplicate check; NSFW skipped for now).
-3. Only scans with `overall_status = approved` (`Clean`) may proceed to generation.
-4. Client calls a generation endpoint with `parent_photo_scan_id` and optional `template_id`.
-5. View creates `BabyImage` row (`status=pending`), dispatches Celery task via `.delay()`.
-6. Task sets `status=processing` → calls Replicate/fal.ai → polls until done → saves image → runs local similarity scoring → sets `status=done`.
-7. Client polls `GET /api/baby-images/{id}/status/` every 2–3s.
+2. Photo scanning is **skipped for now** — the `ParentPhotoScan` is created directly with `overall_status = approved` (`Clean`), ready for generation immediately.
+3. Client calls a generation endpoint with `parent_photo_scan_id` and optional `template_id`.
+4. View creates `BabyImage` row (`status=pending`), dispatches Celery task via `.delay()`. If the broker (Redis) is unreachable (e.g. local dev), the task runs synchronously instead of hanging.
+5. Task sets `status=processing` → calls Replicate/fal.ai → polls until done → saves image → runs local similarity scoring → sets `status=done`.
+6. Client polls `GET /api/baby-images/{id}/status/` every 2–3s.
 
 ## Admin resources
 
@@ -58,7 +57,7 @@
 - **Prompt building**: the active `GenerationPrompt.content` is combined with the user-selected `GenerationTemplate.ai_prompt`. Placeholders `{gender}`, `{age_stage}`, `{background}`, `{outfit}` are replaced. The assembled text is stored on `BabyImage.generation_prompt_text`.
 - **Default generation model**: `tencentarc/photomaker` on Replicate. It accepts the assembled prompt plus multiple reference images (`input_image`, `input_image2`). Configurable via `REPLICATE_BABY_MODEL` and `REPLICATE_BABY_VERSION`. The legacy `smoosh-sh/baby-mystic` model did not accept prompt text.
 - **Image URLs for providers**: tasks build absolute URLs for father/mother/generated images using `BASE_URL` setting. In production this must be the public origin (e.g. `https://api.example.com`). Local dev default is `http://localhost:8000`.
-- **Parent-photo verification**: only `approved` (`Clean`) scans can start generation. `rejected` scans block generation.
+- **Parent-photo verification**: disabled for now. Every uploaded scan is created `approved`, so generation is always allowed to start.
 
 ## Auth
 

@@ -2,6 +2,15 @@ from ..models import BabyImage, GenerationTemplate
 from ..tasks import process_baby_generation
 
 
+def _dispatch_generation(baby_image_id):
+    """Dispatch the generation task, failing fast to a synchronous run when the
+    broker (Redis) is unavailable — e.g. local dev without a worker."""
+    try:
+        process_baby_generation.delay(baby_image_id)
+    except Exception:
+        process_baby_generation(baby_image_id)
+
+
 class BabyImageService:
     def __init__(self, user):
         self.user = user
@@ -25,7 +34,7 @@ class BabyImageService:
             generation_template=template,
             **extra_fields,
         )
-        process_baby_generation.delay(str(baby_image.id))
+        _dispatch_generation(str(baby_image.id))
         return baby_image
 
     def get_status(self, baby_image_id):
@@ -58,7 +67,7 @@ class BabyImageService:
             generation_template=parent.generation_template,
             **extra_fields,
         )
-        process_baby_generation.delay(str(baby_image.id))
+        _dispatch_generation(str(baby_image.id))
         return baby_image
 
     def toggle_favorite(self, baby_image_id):

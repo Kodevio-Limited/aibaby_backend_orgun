@@ -3,26 +3,25 @@ from django.db import transaction
 from ..models import ParentPhotoScan
 
 
-def _dispatch_scan_task(scan_id):
-    from ..tasks import process_parent_photo_scan
-    process_parent_photo_scan.delay(scan_id)
-
-
 class ParentPhotoScanService:
     def __init__(self, user):
         self.user = user
 
     def create_scan(self, father_photo, mother_photo):
-        scan = ParentPhotoScan.objects.create(
+        """Create a parent-photo scan record. Scanning is skipped for now;
+        the record is pre-approved so generation can proceed immediately."""
+        return ParentPhotoScan.objects.create(
             user=self.user,
             father_photo=father_photo,
             mother_photo=mother_photo,
-            overall_status='pending',
-            father_scan_status='pending',
-            mother_scan_status='pending',
+            overall_status='approved',
+            father_scan_status='approved',
+            mother_scan_status='approved',
+            scan_result='Clean',
+            confidence=1.0,
+            father_scan_details={'skipped': True},
+            mother_scan_details={'skipped': True},
         )
-        _dispatch_scan_task(str(scan.id))
-        return scan
 
     def get_scan(self, scan_id):
         return ParentPhotoScan.objects.get(id=scan_id, user=self.user)
@@ -53,17 +52,17 @@ class ParentPhotoScanService:
         return scan
 
     def rescan(self, scan_id):
+        """Admin rescan. Scanning is skipped, so this just re-approves."""
         scan = ParentPhotoScan.objects.get(id=scan_id)
-        scan.father_scan_status = 'pending'
-        scan.mother_scan_status = 'pending'
-        scan.father_scan_details = {}
-        scan.mother_scan_details = {}
-        scan.overall_status = 'scanning'
-        scan.scan_result = 'Scanning...'
-        scan.confidence = 0
+        scan.father_scan_status = 'approved'
+        scan.mother_scan_status = 'approved'
+        scan.father_scan_details = {'skipped': True}
+        scan.mother_scan_details = {'skipped': True}
+        scan.overall_status = 'approved'
+        scan.scan_result = 'Clean'
+        scan.confidence = 1.0
         scan.reason = ''
         scan.save()
-        _dispatch_scan_task(str(scan.id))
         return scan
 
     def _delete_photo_file(self, field):

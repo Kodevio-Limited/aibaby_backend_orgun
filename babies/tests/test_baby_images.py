@@ -129,13 +129,12 @@ class ParentPhotoScanTests(TestCase):
         )
         self.client.force_authenticate(user=self.user)
 
-    @patch('babies.services.parent_photo_scan_service._dispatch_scan_task')
-    def test_upload_scan(self, mock_task):
+    def test_upload_scan(self):
         data = {'father_photo': _create_test_image(), 'mother_photo': _create_test_image()}
         response = self.client.post(reverse('parent-photo-scan-upload'), data, format='multipart')
         self.assertEqual(response.status_code, 201)
         self.assertIn('id', response.data['data'])
-        mock_task.assert_called_once()
+        self.assertEqual(response.data['data']['overall_status'], 'approved')
 
     def test_upload_scan_without_images(self):
         response = self.client.post(reverse('parent-photo-scan-upload'), {}, format='multipart')
