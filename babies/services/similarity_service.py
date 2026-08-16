@@ -10,7 +10,7 @@ class SimilarityService:
                 return None
             distance = face_recognition.face_distance([enc_b[0]], enc_a[0])[0]
             return round((1 - distance) * 100, 1)
-        except Exception:
+        except BaseException:
             return None
 
     def compare_skin_tone(self, image_a_path, image_b_path):
@@ -23,5 +23,5 @@ class SimilarityService:
             avg_b = img_b.reshape(-1, 3).mean(axis=0)
             delta_e = np.linalg.norm(avg_a - avg_b)
             return round(max(0, 100 - delta_e), 1)
-        except Exception:
+        except BaseException:
             return None
