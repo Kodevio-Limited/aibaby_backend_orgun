@@ -89,6 +89,14 @@ def process_baby_generation(baby_image_id):
         baby_image.save()
 
     except Exception as e:
+        from django.conf import settings as _settings
+        base_url = getattr(_settings, 'BASE_URL', '')
+        hint = ''
+        if any(h in base_url for h in ('localhost', '127.0.0.1', '0.0.0.0', '192.168.', '10.')):
+            hint = (
+                " [Hint: BASE_URL is not publicly reachable by Replicate. "
+                "Set BASE_URL to a public origin (or a tunnel) so the provider can download the parent photos.]"
+            )
         baby_image.generation_status = 'failed'
-        baby_image.error_message = str(e)
+        baby_image.error_message = f"{e}{hint}"
         baby_image.save(update_fields=['generation_status', 'error_message'])
