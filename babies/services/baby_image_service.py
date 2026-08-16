@@ -35,6 +35,7 @@ class BabyImageService:
             **extra_fields,
         )
         _dispatch_generation(str(baby_image.id))
+        baby_image.refresh_from_db()
         return baby_image
 
     def get_status(self, baby_image_id):
@@ -68,6 +69,7 @@ class BabyImageService:
             **extra_fields,
         )
         _dispatch_generation(str(baby_image.id))
+        baby_image.refresh_from_db()
         return baby_image
 
     def toggle_favorite(self, baby_image_id):

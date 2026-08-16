@@ -98,10 +98,6 @@ CELERY_RESULT_BACKEND = env('REDIS_URL', default='redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
-# Fail fast if the broker is unreachable so requests don't hang retrying;
-# the service layer falls back to running the task synchronously.
-CELERY_BROKER_CONNECTION_RETRY = False
-CELERY_BROKER_CONNECTION_MAX_RETRIES = 0
 
 REPLICATE_API_TOKEN = env('REPLICATE_API_TOKEN', default='')
 
