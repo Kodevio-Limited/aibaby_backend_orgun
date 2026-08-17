@@ -209,7 +209,7 @@ class BabyImage(models.Model):
     face_shape_similarity = models.FloatField(null=True, blank=True)
     skin_tone_similarity = models.FloatField(null=True, blank=True)
 
-    ai_provider = models.CharField(max_length=50, null=True, blank=True)
+    ai_provider = models.CharField(max_length=255, null=True, blank=True)
     external_job_id = models.CharField(max_length=255, null=True, blank=True)
     generation_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     error_message = models.TextField(null=True, blank=True)
