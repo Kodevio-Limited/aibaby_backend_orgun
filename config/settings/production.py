@@ -6,6 +6,11 @@ ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS')
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS')
 
+# The app is served behind nginx -> Traefik/Cloudflare. Trust the proxy headers so
+# request.is_secure(), secure cookies, and the CSRF origin check all see HTTPS.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
 SECURE_SSL_REDIRECT = False
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
