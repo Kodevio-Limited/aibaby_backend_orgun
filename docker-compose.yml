@@ -77,6 +77,8 @@ services:
     depends_on:
       django:
         condition: service_healthy
+    volumes:
+      - media_volume:/app/media
     networks:
       - backend
 
