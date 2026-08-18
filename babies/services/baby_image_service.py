@@ -63,7 +63,7 @@ class BabyImageService:
             father_photo=father_photo,
             mother_photo=mother_photo,
             gender=parent.gender,
-            age_stage=parent.age_stage,
+            age_stage=extra_fields.pop('age_stage', parent.age_stage),
             background=parent.background,
             generation_template=parent.generation_template,
             **extra_fields,

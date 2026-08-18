@@ -1,7 +1,17 @@
 from .base import *
 
+from django.core.exceptions import ImproperlyConfigured
+
 DEBUG = False
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
+
+# Replicate/other providers must be able to download uploaded parent photos from
+# a public origin. A localhost/private default would silently break generations.
+if any(token in BASE_URL for token in ('localhost', '127.0.0.1', '0.0.0.0', '192.168.', '10.')):
+    raise ImproperlyConfigured(
+        f'BASE_URL={BASE_URL!r} is not publicly reachable. '
+        'Set BASE_URL to the public origin (e.g. https://api.example.com) in the server env.'
+    )
 
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS')
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS')
