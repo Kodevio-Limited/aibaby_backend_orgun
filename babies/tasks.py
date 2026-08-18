@@ -23,8 +23,9 @@ def _build_prompt_extra(baby_image):
     if baby_image.gender:
         parts.append({'boy': 'baby boy', 'girl': 'baby girl', 'twins': 'twin babies'}.get(baby_image.gender, ''))
     if baby_image.age_stage:
+        stage = baby_image.age_stage.strip()
         stage_map = {'newborn': 'newborn baby', '3m': '3 month old baby', '6m': '6 month old baby', '1y': '1 year old baby'}
-        parts.append(stage_map.get(baby_image.age_stage, ''))
+        parts.append(stage_map.get(stage, f'{stage} old baby'))
     if baby_image.background:
         bg_map = {'studio': 'studio background', 'home': 'at home', 'nature': 'outdoors in nature'}
         parts.append(bg_map.get(baby_image.background, ''))

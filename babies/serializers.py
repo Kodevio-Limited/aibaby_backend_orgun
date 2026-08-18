@@ -63,12 +63,12 @@ class BabyImageGenerateWithOptionsSerializer(serializers.Serializer):
     parent_photo_scan_id = serializers.UUIDField()
     template_id = serializers.UUIDField(required=False, allow_null=True)
     gender = serializers.ChoiceField(choices=['boy', 'girl', 'twins'])
-    age_stage = serializers.ChoiceField(choices=['newborn', '3m', '6m', '1y'])
+    age_stage = serializers.CharField(max_length=20)
     background = serializers.ChoiceField(choices=['studio', 'home', 'nature'])
 
 
 class ChangeAgeSerializer(serializers.Serializer):
-    age_stage = serializers.ChoiceField(choices=['newborn', '3m', '6m', '1y'])
+    age_stage = serializers.CharField(max_length=20)
 
 
 class ChangeOutfitSerializer(serializers.Serializer):
