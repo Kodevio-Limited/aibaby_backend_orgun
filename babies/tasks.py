@@ -1,5 +1,6 @@
 from celery import shared_task
 from .models import BabyImage
+from .prompt_builder import build_prompt_extra
 from .services.generation_service import GenerationService, REPLICATE_BABY_PROVIDER
 from .services.similarity_service import SimilarityService
 from .services.scan_service import ScanService
@@ -16,46 +17,6 @@ def _download_and_save(image_url):
     ext = image_url.rsplit('.', 1)[-1].split('?')[0] if '.' in image_url else 'png'
     filename = f'{uuid.uuid4()}.{ext}'
     return ContentFile(response.content, name=filename)
-
-
-def _build_prompt_extra(baby_image):
-    parts = []
-    if baby_image.gender:
-        parts.append({'boy': 'a baby boy', 'girl': 'a baby girl', 'twins': 'twin babies'}.get(baby_image.gender, ''))
-    if baby_image.age_stage:
-        stage = baby_image.age_stage.strip()
-        parts.append(_age_phrase(stage))
-    if baby_image.background:
-        bg_map = {'studio': 'studio background', 'home': 'at home', 'nature': 'outdoors in nature'}
-        parts.append(bg_map.get(baby_image.background, ''))
-    if baby_image.outfit:
-        parts.append(f'wearing {baby_image.outfit}')
-    return ', '.join(filter(None, parts))
-
-
-def _age_phrase(stage):
-    stage = stage.lower()
-    stage_map = {
-        'newborn': 'a newborn baby, just a few days old, tiny infant',
-        '3m': 'a 3 month old baby',
-        '6m': 'a 6 month old baby',
-        '1y': 'a 1 year old baby',
-    }
-    if stage in stage_map:
-        return stage_map[stage]
-    if stage.endswith('m'):
-        try:
-            months = int(stage[:-1])
-            return f'a {months} month old baby'
-        except ValueError:
-            pass
-    if stage.endswith('y'):
-        try:
-            years = int(stage[:-1])
-            return f'a {years} year old child, age exactly {years} years'
-        except ValueError:
-            pass
-    return f'a {stage} old baby'
 
 
 @shared_task
@@ -86,7 +47,7 @@ def process_baby_generation(baby_image_id):
             father_photo_url=father_url,
             mother_photo_url=mother_url,
             gender=baby_image.gender,
-            prompt_extra=_build_prompt_extra(baby_image),
+            prompt_extra=build_prompt_extra(baby_image),
         )
         baby_image.external_job_id = prediction.id
         baby_image.ai_provider = REPLICATE_BABY_PROVIDER

@@ -57,6 +57,7 @@
 - **Pro-plan gating**: `age_stage` >= 1 year (`1y`, `2y`, `5y`, ...) requires `is_pro` on the user. Free tiers may only generate newborn/3m/6m. Gated in the service (`ensure_age_access`), returns `403 PRO_PLAN_REQUIRED`. Timeline creates one image per stage and gates each stage.
 - **Similarity scoring is local** — `face_recognition` (dlib, MIT license) + OpenCV in the Celery worker. No external API. Eyes/face-shape use `face_landmarks()` cropping for targeted comparison.
 - **Prompt building**: the active `GenerationPrompt.content` is combined with the user-selected `GenerationTemplate.ai_prompt`. Placeholders `{gender}`, `{age_stage}`, `{background}`, `{outfit}` are replaced. The assembled text is stored on `BabyImage.generation_prompt_text`.
+- **Prompt factory** (`babies/prompt_builder.py`): the single source of truth for prompt language. `age_descriptor()` resolves known stages (`newborn`/`3m`/`6m`/`1y`) and free-text stages (`5y` → `"a 5 year old child, age exactly 5 years"`, `18m` → `"a 18 month old baby"`) deterministically. `build_prompt_extra()` emits ordered segments: gender → age → background → outfit. `PROMPT_CHECKPOINTS` (keyed by `generation_type`) declares the segments that must never be dropped. `AGE_DRIFT_NEGATIVE` blocks adult drift. Every created `BabyImage` stores a `request_context` JSON snapshot of the exact client config + resolved segments for audit.
 - **Default generation model**: `tencentarc/photomaker` on Replicate. It accepts the assembled prompt plus multiple reference images (`input_image`, `input_image2`). Configurable via `REPLICATE_BABY_MODEL` and `REPLICATE_BABY_VERSION`. The legacy `smoosh-sh/baby-mystic` model did not accept prompt text.
 - **Image URLs for providers**: tasks build absolute URLs for father/mother/generated images using `BASE_URL` setting. In production this must be the public origin (e.g. `https://api.example.com`). Local dev default is `http://localhost:8000`.
 - **Parent-photo verification**: disabled for now. Every uploaded scan is created `approved`, so generation is always allowed to start.
@@ -152,6 +153,7 @@ CORS_ALLOWED_ORIGINS=  # production only
 - `generation_template`: FK to `GenerationTemplate` (user-selected / admin-managed)
 - `parent_photo_scan`: FK to `ParentPhotoScan` (the verified source photos)
 - `generation_prompt_text`: assembled prompt text stored for audit
+- `request_context`: JSON snapshot of exact client config + resolved prompt segments
 - `eyes_similarity`, `face_shape_similarity`, `skin_tone_similarity`: similarity scores
 - `ai_provider`, `external_job_id`: tracking
 - `generation_status`: pending, processing, done, failed

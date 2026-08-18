@@ -1,0 +1,158 @@
+"""Deterministic prompt factory for baby image generation.
+
+Inspired by config-driven prompt architectures (per-tier system prompts +
+injected context blocks): every generation type defines the exact ordered
+segments that MUST appear in the prompt, and every user-supplied parameter
+(gender, age, background, outfit, timeline) is resolved deterministically so
+the model always receives the full, precise configuration the client asked for.
+"""
+
+import re
+from typing import Dict, List
+
+
+# ─── Descriptive segment vocabulary ──────────────────────────────────────────────
+
+GENDER_DESCRIPTORS = {
+    'boy': 'a baby boy',
+    'girl': 'a baby girl',
+    'twins': 'twin babies',
+}
+
+BACKGROUND_DESCRIPTORS = {
+    'studio': 'studio background',
+    'home': 'at home',
+    'nature': 'outdoors in nature',
+}
+
+KNOWN_AGE_DESCRIPTORS = {
+    'newborn': 'a newborn baby, just a few days old, tiny infant',
+    '3m': 'a 3 month old baby',
+    '6m': 'a 6 month old baby',
+    '1y': 'a 1 year old baby',
+}
+
+
+def age_descriptor(age_stage: str) -> str:
+    """Resolve any free-text age stage into a precise prompt descriptor.
+
+    Known stages use curated phrasing; free-text stages are parsed
+    deterministically (e.g. '5y' -> 'a 5 year old child', '18m' -> 'a 18 month
+    old baby') so the age the client sends is exactly what reaches the model.
+    """
+    stage = (age_stage or '').strip().lower()
+    if not stage:
+        return ''
+    if stage in KNOWN_AGE_DESCRIPTORS:
+        return KNOWN_AGE_DESCRIPTORS[stage]
+    if stage == 'newborn':
+        return KNOWN_AGE_DESCRIPTORS['newborn']
+
+    months = re.match(r'^(\d+)m$', stage)
+    if months:
+        return f'a {months.group(1)} month old baby'
+
+    years = re.match(r'^(\d+)y$', stage)
+    if years:
+        count = int(years.group(1))
+        noun = 'baby' if count <= 1 else 'child'
+        return f'a {count} year old {noun}, age exactly {count} years'
+
+    return f'a {stage} old baby'
+
+
+def outfit_phrase(outfit: str) -> str:
+    outfit = (outfit or '').strip()
+    if not outfit:
+        return ''
+    return f'wearing {outfit}'
+
+
+def _segments_for(baby_image) -> List[str]:
+    """Ordered, guaranteed segments for the current image configuration."""
+    segments = []
+
+    gender = (getattr(baby_image, 'gender', '') or '').strip().lower()
+    if gender in GENDER_DESCRIPTORS:
+        segments.append(GENDER_DESCRIPTORS[gender])
+
+    age = age_descriptor(getattr(baby_image, 'age_stage', '') or getattr(baby_image, 'timeline', '') or '')
+    if age:
+        segments.append(age)
+
+    background = (getattr(baby_image, 'background', '') or '').strip().lower()
+    if background in BACKGROUND_DESCRIPTORS:
+        segments.append(BACKGROUND_DESCRIPTORS[background])
+
+    outfit = outfit_phrase(getattr(baby_image, 'outfit', ''))
+    if outfit:
+        segments.append(outfit)
+
+    return segments
+
+
+# ─── Per-generation-type checkpoints ─────────────────────────────────────────────
+# Each entry declares the segments that MUST be present for that generation type,
+# in priority order. Segments the image does not carry (e.g. no outfit) are
+# simply skipped — the guarantee is about never *dropping* a carried value.
+
+PROMPT_CHECKPOINTS: Dict[str, Dict] = {
+    'initial': {
+        'required': ['gender', 'age'],
+        'allow_blank': ['background', 'outfit'],
+    },
+    'age_stage': {
+        'required': ['gender', 'age', 'background'],
+        'allow_blank': ['outfit'],
+    },
+    'timeline': {
+        'required': ['gender', 'age', 'background'],
+        'allow_blank': ['outfit'],
+    },
+    'age_change': {
+        'required': ['gender', 'age', 'background'],
+        'allow_blank': ['outfit'],
+    },
+    'outfit_change': {
+        'required': ['gender', 'age', 'background', 'outfit'],
+        'allow_blank': [],
+    },
+    'high_res': {
+        'required': ['gender', 'age', 'background'],
+        'allow_blank': ['outfit'],
+    },
+}
+
+
+def build_context_snapshot(baby_image) -> Dict:
+    """Persisted audit record: exactly what the client asked for + what we sent."""
+    return {
+        'gender': baby_image.gender,
+        'age_stage': baby_image.age_stage,
+        'background': baby_image.background,
+        'outfit': baby_image.outfit,
+        'timeline': baby_image.timeline,
+        'generation_type': baby_image.generation_type,
+        'parent_id': str(baby_image.parent_image_id) if baby_image.parent_image_id else None,
+        'age_descriptor': age_descriptor(baby_image.age_stage or baby_image.timeline or ''),
+        'segments': _segments_for(baby_image),
+    }
+
+
+def build_prompt_extra(baby_image) -> str:
+    """The descriptive configuration string appended to the base prompt."""
+    return ', '.join(_segments_for(baby_image))
+
+
+# ─── Negative prompt blocks ──────────────────────────────────────────────────────
+
+AGE_DRIFT_NEGATIVE = (
+    'adult, grown up, grown-up, teenager, young adult, man, woman, '
+    'elderly, aged, mature face, facial hair, adult features, adolescent'
+)
+
+BASE_QUALITY_NEGATIVE = (
+    'nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, '
+    'extra digit, fewer digits, cropped, worst quality, low quality, '
+    'normal quality, jpeg artifacts, signature, watermark, username, blurry'
+)

@@ -1,4 +1,5 @@
 from django.conf import settings
+from ..prompt_builder import AGE_DRIFT_NEGATIVE, BASE_QUALITY_NEGATIVE
 
 # Default model: PhotoMaker (supports prompt + multiple reference images).
 REPLICATE_BABY_MODEL = getattr(settings, 'REPLICATE_BABY_MODEL', 'tencentarc/photomaker')
@@ -102,15 +103,8 @@ class GenerationService:
         if ' img' not in prompt_text.lower():
             prompt_text = f'{prompt_text} img'
 
-        base_negative = (
-            'nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, '
-            'extra digit, fewer digits, cropped, worst quality, low quality, '
-            'normal quality, jpeg artifacts, signature, watermark, username, blurry'
-        )
-        age_negative = (
-            'adult, grown up, grown-up, teenager, young adult, man, woman, '
-            'elderly, aged, mature face, facial hair, adult features, adolescent'
-        )
+        base_negative = BASE_QUALITY_NEGATIVE
+        age_negative = AGE_DRIFT_NEGATIVE
         merged_negative = ', '.join(filter(None, [negative_prompt, age_negative, base_negative]))
 
         input_data = {

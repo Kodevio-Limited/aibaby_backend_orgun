@@ -174,6 +174,62 @@ class DerivativeContextTests(TestCase):
         self.assertEqual(data['age_stage'], '7y')
         self.assertEqual(data['outfit'], 'blue jeans')
 
+    @patch('babies.tasks.process_baby_generation.delay')
+    def test_change_age_context_snapshot_holds_request_age(self, mock_delay):
+        base_id = self._make_base_image()
+        response = self.client.post(reverse('change-age', args=[base_id]), {'age_stage': '4y'}, format='json')
+        self.assertEqual(response.status_code, 201)
+        snapshot = response.data['data']['request_context']
+        self.assertEqual(snapshot['age_stage'], '4y')
+        self.assertIn('4 year old child', snapshot['age_descriptor'])
+
+    @patch('babies.tasks.process_baby_generation.delay')
+    def test_generation_prompt_text_contains_request_age(self, mock_delay):
+        base_id = self._make_base_image()
+        response = self.client.post(reverse('change-age', args=[base_id]), {'age_stage': '4y'}, format='json')
+        self.assertEqual(response.status_code, 201)
+        baby_id = response.data['data']['id']
+
+        from babies.models import BabyImage
+        from babies.services.generation_service import GenerationService
+        from babies.prompt_builder import build_prompt_extra
+        baby_image = BabyImage.objects.get(id=baby_id)
+        with patch('replicate.Client'):
+            prompt, _ = GenerationService().build_prompt(
+                baby_image=baby_image,
+                gender=baby_image.gender,
+                age_stage=baby_image.age_stage,
+                background=baby_image.background,
+                outfit=baby_image.outfit,
+                template=baby_image.generation_template,
+                prompt_extra=build_prompt_extra(baby_image),
+            )
+        self.assertIn('4 year old child', prompt)
+
+    @patch('babies.tasks.process_baby_generation.delay')
+    def test_generation_prompt_text_contains_request_outfit(self, mock_delay):
+        base_id = self._make_base_image()
+        response = self.client.post(reverse('change-outfit', args=[base_id]), {'outfit': 'a green hoodie'}, format='json')
+        self.assertEqual(response.status_code, 201)
+        baby_id = response.data['data']['id']
+
+        from babies.models import BabyImage
+        from babies.services.generation_service import GenerationService
+        from babies.prompt_builder import build_prompt_extra
+        baby_image = BabyImage.objects.get(id=baby_id)
+        with patch('replicate.Client'):
+            prompt, _ = GenerationService().build_prompt(
+                baby_image=baby_image,
+                gender=baby_image.gender,
+                age_stage=baby_image.age_stage,
+                background=baby_image.background,
+                outfit=baby_image.outfit,
+                template=baby_image.generation_template,
+                prompt_extra=build_prompt_extra(baby_image),
+            )
+        self.assertIn('wearing a green hoodie', prompt)
+        self.assertIn('5 year old child', prompt)
+
 
 class ProPlanGatingTests(TestCase):
     def setUp(self):

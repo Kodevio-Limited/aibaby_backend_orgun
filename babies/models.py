@@ -217,6 +217,11 @@ class BabyImage(models.Model):
     is_favorite = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
 
+    request_context = models.JSONField(
+        null=True, blank=True,
+        help_text='Snapshot of the exact request config + resolved prompt segments used for this image.',
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -1,4 +1,5 @@
 from ..models import BabyImage, GenerationTemplate
+from ..prompt_builder import build_context_snapshot
 from ..tasks import process_baby_generation
 
 
@@ -67,6 +68,8 @@ class BabyImageService:
             generation_template=template,
             **extra_fields,
         )
+        baby_image.request_context = build_context_snapshot(baby_image)
+        baby_image.save(update_fields=['request_context'])
         _dispatch_generation(str(baby_image.id))
         baby_image.refresh_from_db()
         return baby_image
@@ -105,6 +108,8 @@ class BabyImageService:
             generation_template=parent.generation_template,
             **extra_fields,
         )
+        baby_image.request_context = build_context_snapshot(baby_image)
+        baby_image.save(update_fields=['request_context'])
         _dispatch_generation(str(baby_image.id))
         baby_image.refresh_from_db()
         return baby_image

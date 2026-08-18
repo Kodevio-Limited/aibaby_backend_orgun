@@ -96,6 +96,7 @@ class BabyImageOutputSerializer(serializers.ModelSerializer):
             'gender', 'age_stage', 'background', 'outfit', 'timeline',
             'eyes_similarity', 'face_shape_similarity', 'skin_tone_similarity',
             'error_message', 'is_favorite', 'generation_prompt_text',
+            'request_context',
             'created_at', 'updated_at',
         ]
 
