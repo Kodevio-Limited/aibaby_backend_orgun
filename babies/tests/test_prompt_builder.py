@@ -13,19 +13,19 @@ from babies.prompt_builder import (
 class AgeDescriptorTests(TestCase):
     def test_known_stages(self):
         self.assertEqual(age_descriptor('newborn'), 'a newborn baby, just a few days old, tiny infant')
-        self.assertEqual(age_descriptor('3m'), 'a 3 month old baby')
-        self.assertEqual(age_descriptor('6m'), 'a 6 month old baby')
-        self.assertEqual(age_descriptor('1y'), 'a 1 year old baby')
+        self.assertEqual(age_descriptor('3m'), 'a 3 month old baby, infant with baby features')
+        self.assertEqual(age_descriptor('6m'), 'a 6 month old baby, infant with chubby baby cheeks')
+        self.assertEqual(age_descriptor('1y'), 'a 1 year old baby, toddler with baby features')
 
     def test_free_text_years(self):
-        self.assertEqual(age_descriptor('5y'), 'a 5 year old child, age exactly 5 years')
-        self.assertEqual(age_descriptor('2y'), 'a 2 year old child, age exactly 2 years')
+        self.assertEqual(age_descriptor('5y'), 'a 5 year old child, age exactly 5 years, young child with soft baby-like features, definitely a child, not an adult, not a teenager')
+        self.assertEqual(age_descriptor('2y'), 'a 2 year old child, age exactly 2 years, young child with soft baby-like features, definitely a child, not an adult, not a teenager')
 
     def test_free_text_months(self):
-        self.assertEqual(age_descriptor('18m'), 'a 18 month old baby')
+        self.assertEqual(age_descriptor('18m'), 'a 18 month old baby, young infant with baby features')
 
     def test_case_insensitive(self):
-        self.assertEqual(age_descriptor('5Y'), 'a 5 year old child, age exactly 5 years')
+        self.assertEqual(age_descriptor('5Y'), 'a 5 year old child, age exactly 5 years, young child with soft baby-like features, definitely a child, not an adult, not a teenager')
 
     def test_empty(self):
         self.assertEqual(age_descriptor(''), '')

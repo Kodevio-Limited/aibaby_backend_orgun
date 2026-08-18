@@ -310,6 +310,26 @@ class TimelineGenerationTests(TestCase):
         self.assertEqual([i['timeline'] for i in images], ['3m', '6m', '1y'])
         self.assertEqual(mock_delay.call_count, 3)
 
+    @patch('babies.tasks.process_baby_generation.delay')
+    def test_timeline_accepts_single_stage_string(self, mock_delay):
+        scan = _create_approved_scan(self.user)
+        response = self.client.post(reverse('generate-timeline'), {
+            'parent_photo_scan_id': str(scan.id),
+            'timeline': '1y',
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+        images = response.data['data']
+        self.assertEqual(len(images), 1)
+        self.assertEqual(images[0]['timeline'], '1y')
+
+    def test_timeline_rejects_invalid_type(self):
+        scan = _create_approved_scan(self.user)
+        response = self.client.post(reverse('generate-timeline'), {
+            'parent_photo_scan_id': str(scan.id),
+            'timeline': {'stage': '1y'},
+        }, format='json')
+        self.assertEqual(response.status_code, 400)
+
 
 class ParentPhotoScanTests(TestCase):
     def setUp(self):

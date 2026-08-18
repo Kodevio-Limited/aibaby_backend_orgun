@@ -27,9 +27,9 @@ BACKGROUND_DESCRIPTORS = {
 
 KNOWN_AGE_DESCRIPTORS = {
     'newborn': 'a newborn baby, just a few days old, tiny infant',
-    '3m': 'a 3 month old baby',
-    '6m': 'a 6 month old baby',
-    '1y': 'a 1 year old baby',
+    '3m': 'a 3 month old baby, infant with baby features',
+    '6m': 'a 6 month old baby, infant with chubby baby cheeks',
+    '1y': 'a 1 year old baby, toddler with baby features',
 }
 
 
@@ -39,6 +39,8 @@ def age_descriptor(age_stage: str) -> str:
     Known stages use curated phrasing; free-text stages are parsed
     deterministically (e.g. '5y' -> 'a 5 year old child', '18m' -> 'a 18 month
     old baby') so the age the client sends is exactly what reaches the model.
+    Every phrase anchors the subject as a baby/young child so the model does
+    not drift toward an adult.
     """
     stage = (age_stage or '').strip().lower()
     if not stage:
@@ -50,13 +52,14 @@ def age_descriptor(age_stage: str) -> str:
 
     months = re.match(r'^(\d+)m$', stage)
     if months:
-        return f'a {months.group(1)} month old baby'
+        return f'a {months.group(1)} month old baby, young infant with baby features'
 
     years = re.match(r'^(\d+)y$', stage)
     if years:
         count = int(years.group(1))
-        noun = 'baby' if count <= 1 else 'child'
-        return f'a {count} year old {noun}, age exactly {count} years'
+        if count <= 1:
+            return f'a {count} year old baby, age exactly {count} year, toddler with baby features'
+        return f'a {count} year old child, age exactly {count} years, young child with soft baby-like features, definitely a child, not an adult, not a teenager'
 
     return f'a {stage} old baby'
 
@@ -148,7 +151,8 @@ def build_prompt_extra(baby_image) -> str:
 
 AGE_DRIFT_NEGATIVE = (
     'adult, grown up, grown-up, teenager, young adult, man, woman, '
-    'elderly, aged, mature face, facial hair, adult features, adolescent'
+    'elderly, aged, mature face, facial hair, adult features, adolescent, '
+    'adult teeth, long face, old child, 20 year old, 30 year old, 40 year old'
 )
 
 BASE_QUALITY_NEGATIVE = (

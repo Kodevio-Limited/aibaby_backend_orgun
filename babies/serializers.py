@@ -76,14 +76,24 @@ class ChangeOutfitSerializer(serializers.Serializer):
     outfit = serializers.CharField(max_length=50)
 
 
+class FlexibleTimelineField(serializers.Field):
+    """Accept a single stage string ('1y') or a list of stages (['3m','6m','1y'])."""
+
+    def to_internal_value(self, data):
+        if isinstance(data, str):
+            return [data]
+        if isinstance(data, list):
+            stages = [str(item) for item in data]
+            if not stages:
+                raise serializers.ValidationError('timeline must not be empty.')
+            return stages
+        raise serializers.ValidationError('timeline must be a stage string or a list of stages.')
+
+
 class GenerateTimelineSerializer(serializers.Serializer):
     parent_photo_scan_id = serializers.UUIDField()
     template_id = serializers.UUIDField(required=False, allow_null=True)
-    timeline = serializers.ListField(
-        child=serializers.CharField(max_length=20),
-        min_length=1,
-        max_length=10,
-    )
+    timeline = FlexibleTimelineField()
 
 
 class BabyImageOutputSerializer(serializers.ModelSerializer):
