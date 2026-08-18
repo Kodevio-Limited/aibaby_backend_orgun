@@ -121,6 +121,140 @@ class BabyImageGenerateTests(TestCase):
         self.assertFalse(unfav_response.data['data']['is_favorite'])
 
 
+class DerivativeContextTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            full_name='Test User', email='deriv@example.com', password='testpass123', is_pro=True
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def _make_base_image(self):
+        scan = _create_approved_scan(self.user)
+        response = self.client.post(reverse('generate-with-options'), {
+            'parent_photo_scan_id': str(scan.id),
+            'gender': 'girl',
+            'age_stage': '5y',
+            'background': 'nature',
+            'outfit': 'a yellow dress',
+        }, format='json')
+        return response.data['data']['id']
+
+    @patch('babies.tasks.process_baby_generation.delay')
+    def test_change_outfit_preserves_full_context(self, mock_delay):
+        base_id = self._make_base_image()
+        response = self.client.post(reverse('change-outfit', args=[base_id]), {'outfit': 'a red dress'}, format='json')
+        self.assertEqual(response.status_code, 201)
+        data = response.data['data']
+        self.assertEqual(data['gender'], 'girl')
+        self.assertEqual(data['age_stage'], '5y')
+        self.assertEqual(data['background'], 'nature')
+        self.assertEqual(data['outfit'], 'a red dress')
+
+    @patch('babies.tasks.process_baby_generation.delay')
+    def test_change_age_preserves_outfit(self, mock_delay):
+        base_id = self._make_base_image()
+        response = self.client.post(reverse('change-age', args=[base_id]), {'age_stage': '3y'}, format='json')
+        self.assertEqual(response.status_code, 201)
+        data = response.data['data']
+        self.assertEqual(data['age_stage'], '3y')
+        self.assertEqual(data['outfit'], 'a yellow dress')
+        self.assertEqual(data['gender'], 'girl')
+        self.assertEqual(data['background'], 'nature')
+
+    @patch('babies.tasks.process_baby_generation.delay')
+    def test_change_outfit_then_change_age_walks_chain(self, mock_delay):
+        base_id = self._make_base_image()
+        outfit_response = self.client.post(reverse('change-outfit', args=[base_id]), {'outfit': 'blue jeans'}, format='json')
+        outfit_id = outfit_response.data['data']['id']
+
+        age_response = self.client.post(reverse('change-age', args=[outfit_id]), {'age_stage': '7y'}, format='json')
+        self.assertEqual(age_response.status_code, 201)
+        data = age_response.data['data']
+        self.assertEqual(data['age_stage'], '7y')
+        self.assertEqual(data['outfit'], 'blue jeans')
+
+
+class ProPlanGatingTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            full_name='Free User', email='free@example.com', password='testpass123', is_pro=False
+        )
+        self.client.force_authenticate(user=self.user)
+
+    @patch('babies.tasks.process_baby_generation.delay')
+    def test_free_user_can_generate_newborn(self, mock_delay):
+        scan = _create_approved_scan(self.user)
+        response = self.client.post(reverse('generate-with-options'), {
+            'parent_photo_scan_id': str(scan.id),
+            'gender': 'boy',
+            'age_stage': '6m',
+            'background': 'studio',
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+
+    @patch('babies.tasks.process_baby_generation.delay')
+    def test_free_user_blocked_from_1y(self, mock_delay):
+        scan = _create_approved_scan(self.user)
+        response = self.client.post(reverse('generate-with-options'), {
+            'parent_photo_scan_id': str(scan.id),
+            'gender': 'boy',
+            'age_stage': '1y',
+            'background': 'studio',
+        }, format='json')
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data['code'], 'PRO_PLAN_REQUIRED')
+
+    @patch('babies.tasks.process_baby_generation.delay')
+    def test_free_user_blocked_from_2y_change_age(self, mock_delay):
+        scan = _create_approved_scan(self.user)
+        response = self.client.post(reverse('generate-with-options'), {
+            'parent_photo_scan_id': str(scan.id),
+            'gender': 'girl',
+            'age_stage': '6m',
+            'background': 'home',
+        }, format='json')
+        base_id = response.data['data']['id']
+
+        change_response = self.client.post(reverse('change-age', args=[base_id]), {'age_stage': '2y'}, format='json')
+        self.assertEqual(change_response.status_code, 403)
+        self.assertEqual(change_response.data['code'], 'PRO_PLAN_REQUIRED')
+
+    @patch('babies.tasks.process_baby_generation.delay')
+    def test_timeline_gates_each_stage(self, mock_delay):
+        scan = _create_approved_scan(self.user)
+        response = self.client.post(reverse('generate-timeline'), {
+            'parent_photo_scan_id': str(scan.id),
+            'timeline': ['3m', '1y'],
+        }, format='json')
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data['code'], 'PRO_PLAN_REQUIRED')
+
+
+class TimelineGenerationTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            full_name='Pro User', email='timeline@example.com', password='testpass123', is_pro=True
+        )
+        self.client.force_authenticate(user=self.user)
+
+    @patch('babies.tasks.process_baby_generation.delay')
+    def test_timeline_creates_one_image_per_stage(self, mock_delay):
+        scan = _create_approved_scan(self.user)
+        response = self.client.post(reverse('generate-timeline'), {
+            'parent_photo_scan_id': str(scan.id),
+            'timeline': ['3m', '6m', '1y'],
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+        images = response.data['data']
+        self.assertEqual(len(images), 3)
+        self.assertEqual([i['age_stage'] for i in images], ['3m', '6m', '1y'])
+        self.assertEqual([i['timeline'] for i in images], ['3m', '6m', '1y'])
+        self.assertEqual(mock_delay.call_count, 3)
+
+
 class ParentPhotoScanTests(TestCase):
     def setUp(self):
         self.client = APIClient()

@@ -21,17 +21,41 @@ def _download_and_save(image_url):
 def _build_prompt_extra(baby_image):
     parts = []
     if baby_image.gender:
-        parts.append({'boy': 'baby boy', 'girl': 'baby girl', 'twins': 'twin babies'}.get(baby_image.gender, ''))
+        parts.append({'boy': 'a baby boy', 'girl': 'a baby girl', 'twins': 'twin babies'}.get(baby_image.gender, ''))
     if baby_image.age_stage:
         stage = baby_image.age_stage.strip()
-        stage_map = {'newborn': 'newborn baby', '3m': '3 month old baby', '6m': '6 month old baby', '1y': '1 year old baby'}
-        parts.append(stage_map.get(stage, f'{stage} old baby'))
+        parts.append(_age_phrase(stage))
     if baby_image.background:
         bg_map = {'studio': 'studio background', 'home': 'at home', 'nature': 'outdoors in nature'}
         parts.append(bg_map.get(baby_image.background, ''))
     if baby_image.outfit:
         parts.append(f'wearing {baby_image.outfit}')
     return ', '.join(filter(None, parts))
+
+
+def _age_phrase(stage):
+    stage = stage.lower()
+    stage_map = {
+        'newborn': 'a newborn baby, just a few days old, tiny infant',
+        '3m': 'a 3 month old baby',
+        '6m': 'a 6 month old baby',
+        '1y': 'a 1 year old baby',
+    }
+    if stage in stage_map:
+        return stage_map[stage]
+    if stage.endswith('m'):
+        try:
+            months = int(stage[:-1])
+            return f'a {months} month old baby'
+        except ValueError:
+            pass
+    if stage.endswith('y'):
+        try:
+            years = int(stage[:-1])
+            return f'a {years} year old child, age exactly {years} years'
+        except ValueError:
+            pass
+    return f'a {stage} old baby'
 
 
 @shared_task

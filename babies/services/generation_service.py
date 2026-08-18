@@ -102,11 +102,22 @@ class GenerationService:
         if ' img' not in prompt_text.lower():
             prompt_text = f'{prompt_text} img'
 
+        base_negative = (
+            'nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, '
+            'extra digit, fewer digits, cropped, worst quality, low quality, '
+            'normal quality, jpeg artifacts, signature, watermark, username, blurry'
+        )
+        age_negative = (
+            'adult, grown up, grown-up, teenager, young adult, man, woman, '
+            'elderly, aged, mature face, facial hair, adult features, adolescent'
+        )
+        merged_negative = ', '.join(filter(None, [negative_prompt, age_negative, base_negative]))
+
         input_data = {
             'input_image': father_photo_url,
             'input_image2': mother_photo_url,
             'prompt': prompt_text,
-            'negative_prompt': negative_prompt or 'nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry',
+            'negative_prompt': merged_negative,
             'num_steps': 20,
             'num_outputs': 1,
             'style_name': self._photomaker_style(template),

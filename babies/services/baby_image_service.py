@@ -11,6 +11,37 @@ def _dispatch_generation(baby_image_id):
         process_baby_generation(baby_image_id)
 
 
+class ProPlanRequiredError(Exception):
+    """Raised when the user attempts an age stage that requires a pro plan."""
+
+
+def _age_months(age_stage):
+    """Parse a free-text age stage into months (newborn=0)."""
+    stage = (age_stage or '').strip().lower()
+    if not stage or stage == 'newborn':
+        return 0
+    if stage.endswith('m'):
+        try:
+            return int(stage[:-1])
+        except ValueError:
+            return 0
+    if stage.endswith('y'):
+        try:
+            return int(stage[:-1]) * 12
+        except ValueError:
+            return 0
+    return 0
+
+
+PRO_AGE_THRESHOLD_MONTHS = 12  # 1y and older requires a pro plan
+
+
+def ensure_age_access(user, age_stage):
+    """Free ages: newborn/3m/6m. 1y and beyond (2y, 5y, ...) require is_pro."""
+    if _age_months(age_stage) >= PRO_AGE_THRESHOLD_MONTHS and not getattr(user, 'is_pro', False):
+        raise ProPlanRequiredError('This age stage requires a pro plan.')
+
+
 class BabyImageService:
     def __init__(self, user):
         self.user = user
@@ -25,6 +56,8 @@ class BabyImageService:
             template = GenerationTemplate.objects.get(id=template_id, status='active')
 
         generation_type = extra_fields.pop('generation_type', 'initial')
+        age_stage = extra_fields.get('age_stage') or extra_fields.get('timeline')
+        ensure_age_access(self.user, age_stage)
         baby_image = BabyImage.objects.create(
             user=self.user,
             generation_type=generation_type,
@@ -56,15 +89,19 @@ class BabyImageService:
     def create_derivative(self, parent_id, generation_type, **extra_fields):
         parent = BabyImage.objects.get(id=parent_id, user=self.user, is_deleted=False)
         father_photo, mother_photo = self.get_root_photos(parent)
+        age_stage = extra_fields.get('age_stage', parent.age_stage)
+        ensure_age_access(self.user, age_stage)
         baby_image = BabyImage.objects.create(
             user=self.user,
             parent_image=parent,
             generation_type=generation_type,
             father_photo=father_photo,
             mother_photo=mother_photo,
-            gender=parent.gender,
+            gender=extra_fields.pop('gender', parent.gender),
             age_stage=extra_fields.pop('age_stage', parent.age_stage),
-            background=parent.background,
+            background=extra_fields.pop('background', parent.background),
+            outfit=extra_fields.pop('outfit', parent.outfit),
+            timeline=extra_fields.pop('timeline', parent.timeline),
             generation_template=parent.generation_template,
             **extra_fields,
         )

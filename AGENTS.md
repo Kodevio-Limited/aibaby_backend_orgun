@@ -53,6 +53,8 @@
 ## Generation rules
 
 - **Age-chain**: `change_age`/`change_outfit` must walk the `parent_image` chain back to root (`generation_type='initial'` or `'age_stage'`) to find original father/mother photos — never regenerate from a previously-generated image (prevents quality degradation).
+- **Context preservation**: every derivative (`age_change`, `outfit_change`, `high_res`) copies ALL config from its parent — `gender`, `age_stage`, `background`, `outfit`, `timeline` — so a change-outfit on a 5-year-old image stays a 5-year-old.
+- **Pro-plan gating**: `age_stage` >= 1 year (`1y`, `2y`, `5y`, ...) requires `is_pro` on the user. Free tiers may only generate newborn/3m/6m. Gated in the service (`ensure_age_access`), returns `403 PRO_PLAN_REQUIRED`. Timeline creates one image per stage and gates each stage.
 - **Similarity scoring is local** — `face_recognition` (dlib, MIT license) + OpenCV in the Celery worker. No external API. Eyes/face-shape use `face_landmarks()` cropping for targeted comparison.
 - **Prompt building**: the active `GenerationPrompt.content` is combined with the user-selected `GenerationTemplate.ai_prompt`. Placeholders `{gender}`, `{age_stage}`, `{background}`, `{outfit}` are replaced. The assembled text is stored on `BabyImage.generation_prompt_text`.
 - **Default generation model**: `tencentarc/photomaker` on Replicate. It accepts the assembled prompt plus multiple reference images (`input_image`, `input_image2`). Configurable via `REPLICATE_BABY_MODEL` and `REPLICATE_BABY_VERSION`. The legacy `smoosh-sh/baby-mystic` model did not accept prompt text.
@@ -77,11 +79,11 @@
 | 7 | GET | `/baby-images/parent-photo-scans/{id}/` | scan status |
 | 8 | GET | `/baby-images/templates/active/` | list active user templates |
 | 9 | POST | `/baby-images/generate/` | JSON: `parent_photo_scan_id`, `template_id` |
-| 10 | POST | `/baby-images/generate-with-options/` | JSON: `parent_photo_scan_id`, `template_id`, `gender`, `age_stage`, `background` |
-| 11 | POST | `/baby-images/{id}/change-age/` | |
-| 12 | POST | `/baby-images/{id}/change-outfit/` | |
+| 10 | POST | `/baby-images/generate-with-options/` | JSON: `parent_photo_scan_id`, `template_id`, `gender`, `age_stage`, `background`, optional `outfit` |
+| 11 | POST | `/baby-images/{id}/change-age/` | JSON: `age_stage` |
+| 12 | POST | `/baby-images/{id}/change-outfit/` | JSON: `outfit` |
 | 13 | POST | `/baby-images/{id}/generate-high-res/` | |
-| 14 | POST | `/baby-images/generate-timeline/` | JSON: `parent_photo_scan_id`, `template_id`, `timeline` |
+| 14 | POST | `/baby-images/generate-timeline/` | JSON: `parent_photo_scan_id`, `template_id`, `timeline` (list of stages, e.g. `["3m","6m","1y"]`); creates one image per stage |
 | 15 | GET | `/baby-images/?filter=favorite` | |
 | 16 | GET | `/baby-images/?filter=history` | |
 | 17 | PATCH | `/profile/` | |

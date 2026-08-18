@@ -8,7 +8,7 @@ from .serializers import (
     ParentPhotoScanUploadSerializer, ParentPhotoScanOutputSerializer,
 )
 from .models import BabyImage
-from .services.baby_image_service import BabyImageService
+from .services.baby_image_service import BabyImageService, ProPlanRequiredError
 from .services.parent_photo_scan_service import ParentPhotoScanService
 from core.pagination import StandardPagination
 
@@ -64,6 +64,8 @@ class GenerateBabyView(APIView):
                 {'detail': str(e), 'code': 'PHOTOS_NOT_APPROVED'},
                 status=400,
             )
+        except ProPlanRequiredError as e:
+            return Response({'detail': str(e), 'code': 'PRO_PLAN_REQUIRED'}, status=403)
         except Exception as e:
             return Response(
                 {'detail': 'Could not start generation', 'code': 'GENERATION_START_FAILED'},
@@ -91,12 +93,15 @@ class GenerateBabyWithOptionsView(APIView):
                 gender=data['gender'],
                 age_stage=data['age_stage'],
                 background=data['background'],
+                outfit=data.get('outfit', ''),
             )
         except ValueError as e:
             return Response(
                 {'detail': str(e), 'code': 'PHOTOS_NOT_APPROVED'},
                 status=400,
             )
+        except ProPlanRequiredError as e:
+            return Response({'detail': str(e), 'code': 'PRO_PLAN_REQUIRED'}, status=403)
         except Exception as e:
             return Response(
                 {'detail': 'Could not start generation', 'code': 'GENERATION_START_FAILED'},
@@ -123,6 +128,8 @@ class ChangeAgeView(APIView):
             )
         except BabyImage.DoesNotExist:
             raise NotFound('Baby image not found.')
+        except ProPlanRequiredError as e:
+            return Response({'detail': str(e), 'code': 'PRO_PLAN_REQUIRED'}, status=403)
         except Exception as e:
             return Response(
                 {'detail': 'Could not change age', 'code': 'AGE_CHANGE_FAILED'},
@@ -191,17 +198,23 @@ class GenerateTimelineView(APIView):
         try:
             service = BabyImageService(user=request.user)
             data = serializer.validated_data
-            baby_image = service.create_generation(
-                generation_type='timeline',
-                parent_photo_scan_id=data['parent_photo_scan_id'],
-                template_id=data.get('template_id'),
-                timeline=data['timeline'],
-            )
+            baby_images = []
+            for stage in data['timeline']:
+                baby_image = service.create_generation(
+                    generation_type='timeline',
+                    parent_photo_scan_id=data['parent_photo_scan_id'],
+                    template_id=data.get('template_id'),
+                    timeline=stage,
+                    age_stage=stage,
+                )
+                baby_images.append(baby_image)
         except ValueError as e:
             return Response(
                 {'detail': str(e), 'code': 'PHOTOS_NOT_APPROVED'},
                 status=400,
             )
+        except ProPlanRequiredError as e:
+            return Response({'detail': str(e), 'code': 'PRO_PLAN_REQUIRED'}, status=403)
         except Exception as e:
             return Response(
                 {'detail': 'Could not start timeline generation', 'code': 'TIMELINE_START_FAILED'},
@@ -209,7 +222,7 @@ class GenerateTimelineView(APIView):
             )
 
         return Response(
-            {'data': BabyImageOutputSerializer(baby_image, context={'request': request}).data},
+            {'data': BabyImageOutputSerializer(baby_images, many=True, context={'request': request}).data},
             status=201,
         )
 
