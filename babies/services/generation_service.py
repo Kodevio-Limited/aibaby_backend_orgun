@@ -118,11 +118,32 @@ class GenerationService:
             'disable_safety_checker': True,
         }
 
-        prediction = self.client.predictions.create(
-            version=self.version,
-            input=input_data,
-        )
+        prediction = self._create_prediction_with_retry(input_data)
         return prediction
+
+    def _create_prediction_with_retry(self, input_data, max_attempts=5, base_delay=4):
+        """Create a Replicate prediction, retrying on 429 rate limits.
+
+        Free/low-credit Replicate accounts throttle creation to a burst of ~1
+        concurrent prediction — timeline bursts fail with 429. We back off and
+        retry until the throttle resets instead of failing the generation."""
+        import time
+
+        attempt = 0
+        while True:
+            try:
+                return self.client.predictions.create(
+                    version=self.version,
+                    input=input_data,
+                )
+            except Exception as e:
+                is_429 = getattr(e, 'status', None) == 429 or '429' in str(e) or 'throttled' in str(e).lower()
+                attempt += 1
+                if not is_429 or attempt >= max_attempts:
+                    raise
+                delay = base_delay * (2 ** (attempt - 1))
+                import random
+                time.sleep(delay + random.uniform(0, 2))
 
     def get_prediction_result(self, prediction_id):
         prediction = self.client.predictions.get(prediction_id)
