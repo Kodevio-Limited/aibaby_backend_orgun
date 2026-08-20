@@ -1,4 +1,5 @@
 from celery import shared_task
+import uuid
 from .models import BabyImage
 from .prompt_builder import build_context_boost
 from .services.generation_service import GenerationService, REPLICATE_BABY_PROVIDER
@@ -30,55 +31,99 @@ def process_parent_photo_scan(scan_id):
         pass
 
 
+def _run_outfit_edit(baby_image):
+    """Render an outfit change as a local edit of the SAME parent image.
+
+    The user's exact colour is applied to the garment pixels while the face is
+    left untouched, so the baby is pixel-identical and only the outfit changes.
+    """
+    from django.core.files.base import ContentFile
+    from .services.outfit_edit_service import OutfitEditService
+    from .prompt_builder import build_outfit_prompt
+
+    # Copy the exact parent image; edit the COPY so the original stays intact.
+    with open(baby_image.parent_image.generated_image.path, 'rb') as f:
+        content = f.read()
+    baby_image.generated_image.save(
+        f'{uuid.uuid4()}.png', ContentFile(content), save=False
+    )
+    edited = OutfitEditService().edit_outfit(
+        baby_image.generated_image.path, baby_image.outfit
+    )
+    if not edited:
+        raise Exception(
+            'Could not apply the outfit colour. Please use a known colour '
+            'name (e.g. red, blue, green, black, white).'
+        )
+
+    baby_image.generation_prompt_text = build_outfit_prompt(baby_image.outfit)
+    baby_image.ai_provider = 'local:outfit-recolor'
+    baby_image.generation_status = 'done'
+    baby_image.save()
+
+
+def _run_normal_generation(baby_image):
+    from django.conf import settings
+
+    base_url = getattr(settings, 'BASE_URL', '').rstrip('/')
+    father_url = f"{base_url}{baby_image.father_photo.url}"
+    mother_url = f"{base_url}{baby_image.mother_photo.url}"
+
+    gen_service = GenerationService()
+    prediction = gen_service.generate_baby(
+        baby_image=baby_image,
+        father_photo_url=father_url,
+        mother_photo_url=mother_url,
+        gender=baby_image.gender,
+        prompt_extra=build_context_boost(baby_image),
+    )
+    baby_image.external_job_id = prediction.id
+    baby_image.ai_provider = REPLICATE_BABY_PROVIDER
+    baby_image.save(update_fields=['external_job_id', 'ai_provider'])
+
+    result = gen_service.wait_for_prediction(prediction)
+    if result.status != 'succeeded':
+        raise Exception(f"Generation failed: {result.error}")
+
+    image_url = result.output[0] if isinstance(result.output, list) else result.output
+    baby_image.generated_image = _download_and_save(image_url)
+    baby_image.save(update_fields=['generated_image'])
+
+    # Guarantee a single face-first portrait: crop out hands/legs/background.
+    ImageProcessingService().crop_and_save(baby_image.generated_image.path)
+
+    similarity_service = SimilarityService()
+    baby_image.eyes_similarity = similarity_service.compare_faces(
+        baby_image.generated_image.path, baby_image.father_photo.path
+    )
+    baby_image.face_shape_similarity = similarity_service.compare_faces(
+        baby_image.generated_image.path, baby_image.mother_photo.path
+    )
+    baby_image.skin_tone_similarity = similarity_service.compare_skin_tone(
+        baby_image.generated_image.path, baby_image.father_photo.path
+    )
+
+    baby_image.generation_status = 'done'
+    baby_image.save()
+
+
 @shared_task
 def process_baby_generation(baby_image_id):
     baby_image = BabyImage.objects.get(id=baby_image_id)
     baby_image.generation_status = 'processing'
     baby_image.save(update_fields=['generation_status'])
 
+    is_outfit_edit = (
+        baby_image.generation_type == 'outfit_change'
+        and baby_image.parent_image is not None
+        and bool(baby_image.parent_image.generated_image)
+    )
+
     try:
-        from django.conf import settings
-        base_url = getattr(settings, 'BASE_URL', '').rstrip('/')
-        father_url = f"{base_url}{baby_image.father_photo.url}"
-        mother_url = f"{base_url}{baby_image.mother_photo.url}"
-
-        gen_service = GenerationService()
-        prediction = gen_service.generate_baby(
-            baby_image=baby_image,
-            father_photo_url=father_url,
-            mother_photo_url=mother_url,
-            gender=baby_image.gender,
-            prompt_extra=build_context_boost(baby_image),
-        )
-        baby_image.external_job_id = prediction.id
-        baby_image.ai_provider = REPLICATE_BABY_PROVIDER
-        baby_image.save(update_fields=['external_job_id', 'ai_provider'])
-
-        result = gen_service.wait_for_prediction(prediction)
-        if result.status != 'succeeded':
-            raise Exception(f"Generation failed: {result.error}")
-
-        image_url = result.output[0] if isinstance(result.output, list) else result.output
-        baby_image.generated_image = _download_and_save(image_url)
-        baby_image.save(update_fields=['generated_image'])
-
-        # Guarantee a single face-first portrait: crop out hands/legs/background.
-        ImageProcessingService().crop_and_save(baby_image.generated_image.path)
-
-        similarity_service = SimilarityService()
-        baby_image.eyes_similarity = similarity_service.compare_faces(
-            baby_image.generated_image.path, baby_image.father_photo.path
-        )
-        baby_image.face_shape_similarity = similarity_service.compare_faces(
-            baby_image.generated_image.path, baby_image.mother_photo.path
-        )
-        baby_image.skin_tone_similarity = similarity_service.compare_skin_tone(
-            baby_image.generated_image.path, baby_image.father_photo.path
-        )
-
-        baby_image.generation_status = 'done'
-        baby_image.save()
-
+        if is_outfit_edit:
+            _run_outfit_edit(baby_image)
+        else:
+            _run_normal_generation(baby_image)
     except Exception as e:
         from django.conf import settings as _settings
         base_url = getattr(_settings, 'BASE_URL', '')

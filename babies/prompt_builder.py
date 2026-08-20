@@ -191,6 +191,18 @@ def build_context_boost(baby_image) -> str:
     return ' '.join(sentences)
 
 
+def build_outfit_prompt(outfit) -> str:
+    """Dedicated prompt builder for outfit changes.
+
+    The outfit text (with its exact colour) is the authoritative cloth
+    instruction, stated as a full sentence so a known colour like "red" is
+    unambiguous. Stored on the derivative for audit; the local outfit editor
+    extracts the colour from the same string.
+    """
+    outfit = (outfit or '').strip()
+    return f'The baby is wearing {outfit}.' if outfit else ''
+
+
 # ─── Negative prompt blocks ──────────────────────────────────────────────────────
 
 AGE_DRIFT_NEGATIVE = (
