@@ -123,10 +123,12 @@ class GenerationService:
             'num_steps': 20,
             'num_outputs': 1,
             'style_name': self._photomaker_style(template),
-            # Lower style_strength_ratio favours identity fidelity to the parent
-            # reference photos -> a stronger father/mother resemblance in the baby.
-            'style_strength_ratio': 15,
-            'guidance_scale': 5,
+            # Balanced identity-vs-prompt weight. High enough that the model
+            # actually respects the user's described outfit/color (e.g. "a red
+            # dress" renders red), while still drawing identity from the parent
+            # reference photos so the baby keeps the same face on outfit changes.
+            'style_strength_ratio': 22,
+            'guidance_scale': 7,
             'disable_safety_checker': True,
         }
 

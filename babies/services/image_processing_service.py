@@ -84,11 +84,12 @@ class ImageProcessingService:
 
         # Head (including hair above the dlib eye/brow line) ≈ 1.45x face box.
         head_height = face_height * 1.45
-        # Passport rule of thumb: head occupies ~68% of frame height.
-        crop_height = head_height / 0.68
+        # Portrait rule: head occupies ~55% of frame height so the shoulders and
+        # the top of the garment (whose colour the user controls) stay in frame.
+        crop_height = head_height / 0.55
         crop_width = crop_height * PASSPORT_ASPECT
 
-        face_top_ratio = 0.30  # face box top sits 30% down the frame
+        face_top_ratio = 0.26  # face box top sits 26% down the frame
         crop_left = face_cx - crop_width / 2.0
         crop_top = top - face_top_ratio * crop_height
 
