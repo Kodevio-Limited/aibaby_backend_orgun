@@ -1,5 +1,10 @@
 from django.conf import settings
-from ..prompt_builder import AGE_DRIFT_NEGATIVE, BASE_QUALITY_NEGATIVE
+from ..prompt_builder import (
+    AGE_DRIFT_NEGATIVE,
+    BASE_QUALITY_NEGATIVE,
+    FULL_BODY_NEGATIVE,
+    MULTIPLE_PEOPLE_NEGATIVE,
+)
 
 # Default model: PhotoMaker (supports prompt + multiple reference images).
 REPLICATE_BABY_MODEL = getattr(settings, 'REPLICATE_BABY_MODEL', 'tencentarc/photomaker')
@@ -105,7 +110,10 @@ class GenerationService:
 
         base_negative = BASE_QUALITY_NEGATIVE
         age_negative = AGE_DRIFT_NEGATIVE
-        merged_negative = ', '.join(filter(None, [negative_prompt, age_negative, base_negative]))
+        composition_negative = ', '.join(filter(None, [MULTIPLE_PEOPLE_NEGATIVE, FULL_BODY_NEGATIVE]))
+        merged_negative = ', '.join(
+            filter(None, [negative_prompt, age_negative, composition_negative, base_negative])
+        )
 
         input_data = {
             'input_image': father_photo_url,

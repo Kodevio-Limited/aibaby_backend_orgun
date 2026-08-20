@@ -7,6 +7,10 @@ from babies.prompt_builder import (
     outfit_phrase,
     GENDER_DESCRIPTORS,
     BACKGROUND_DESCRIPTORS,
+    SINGLE_BABY_DESCRIPTOR,
+    CLOSEUP_DESCRIPTOR,
+    MULTIPLE_PEOPLE_NEGATIVE,
+    FULL_BODY_NEGATIVE,
 )
 
 
@@ -49,6 +53,9 @@ class PromptBuilderTests(TestCase):
         timeline = None
         generation_type = 'outfit_change'
         parent_image_id = None
+        parent_photo_scan_id = None
+        father_photo = None
+        mother_photo = None
 
     def test_prompt_extra_contains_all_context(self):
         extra = build_prompt_extra(self.FakeBabyImage())
@@ -57,12 +64,24 @@ class PromptBuilderTests(TestCase):
         self.assertIn(BACKGROUND_DESCRIPTORS['nature'], extra)
         self.assertIn('wearing a yellow dress', extra)
 
+    def test_prompt_extra_enforces_single_baby_and_closeup(self):
+        extra = build_prompt_extra(self.FakeBabyImage())
+        self.assertIn(SINGLE_BABY_DESCRIPTOR, extra)
+        self.assertIn(CLOSEUP_DESCRIPTOR, extra)
+
     def test_context_snapshot(self):
         snapshot = build_context_snapshot(self.FakeBabyImage())
         self.assertEqual(snapshot['age_stage'], '5y')
         self.assertEqual(snapshot['outfit'], 'a yellow dress')
         self.assertIn('5 year old child', snapshot['age_descriptor'])
-        self.assertEqual(len(snapshot['segments']), 4)
+        self.assertEqual(len(snapshot['segments']), 6)
+
+    def test_negative_blocks_cover_anomalies(self):
+        self.assertIn('multiple people', MULTIPLE_PEOPLE_NEGATIVE)
+        self.assertIn('twins', MULTIPLE_PEOPLE_NEGATIVE)
+        self.assertIn('full body', FULL_BODY_NEGATIVE)
+        self.assertIn('hands', FULL_BODY_NEGATIVE)
+        self.assertIn('legs', FULL_BODY_NEGATIVE)
 
     def test_prompt_extra_uses_timeline_fallback_for_age(self):
         image = self.FakeBabyImage()

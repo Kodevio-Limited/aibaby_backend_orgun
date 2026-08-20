@@ -141,6 +141,22 @@ class DerivativeContextTests(TestCase):
         return response.data['data']['id']
 
     @patch('babies.tasks.process_baby_generation.delay')
+    def test_generation_context_snapshot_has_photos_and_scan(self, mock_delay):
+        scan = _create_approved_scan(self.user)
+        response = self.client.post(reverse('generate-with-options'), {
+            'parent_photo_scan_id': str(scan.id),
+            'gender': 'boy',
+            'age_stage': '6m',
+            'background': 'studio',
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+        snapshot = response.data['data']['request_context']
+        self.assertEqual(snapshot['parent_photo_scan_id'], str(scan.id))
+        self.assertTrue(snapshot['father_photo'])
+        self.assertTrue(snapshot['mother_photo'])
+        self.assertIn('6 month old baby', snapshot['age_descriptor'])
+
+    @patch('babies.tasks.process_baby_generation.delay')
     def test_change_outfit_preserves_full_context(self, mock_delay):
         base_id = self._make_base_image()
         response = self.client.post(reverse('change-outfit', args=[base_id]), {'outfit': 'a red dress'}, format='json')

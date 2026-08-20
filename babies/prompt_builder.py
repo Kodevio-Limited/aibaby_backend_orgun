@@ -13,6 +13,13 @@ from typing import Dict, List
 
 # ─── Descriptive segment vocabulary ──────────────────────────────────────────────
 
+# Composition anchors injected into EVERY generation prompt. They guarantee a
+# single-subject, face-first portrait — PhotoMaker is fed two parent reference
+# photos and tends to render extra people (or full bodies with hands/feet)
+# unless the prompt explicitly rules them out.
+SINGLE_BABY_DESCRIPTOR = 'a single baby only, one baby, exactly one child in the frame'
+CLOSEUP_DESCRIPTOR = 'close-up head and shoulders portrait, face filling the frame, hands and feet not visible'
+
 GENDER_DESCRIPTORS = {
     'boy': 'a baby boy',
     'girl': 'a baby girl',
@@ -73,7 +80,7 @@ def outfit_phrase(outfit: str) -> str:
 
 def _segments_for(baby_image) -> List[str]:
     """Ordered, guaranteed segments for the current image configuration."""
-    segments = []
+    segments = [SINGLE_BABY_DESCRIPTOR, CLOSEUP_DESCRIPTOR]
 
     gender = (getattr(baby_image, 'gender', '') or '').strip().lower()
     if gender in GENDER_DESCRIPTORS:
@@ -137,6 +144,9 @@ def build_context_snapshot(baby_image) -> Dict:
         'timeline': baby_image.timeline,
         'generation_type': baby_image.generation_type,
         'parent_id': str(baby_image.parent_image_id) if baby_image.parent_image_id else None,
+        'parent_photo_scan_id': str(baby_image.parent_photo_scan_id) if baby_image.parent_photo_scan_id else None,
+        'father_photo': baby_image.father_photo.url if baby_image.father_photo else None,
+        'mother_photo': baby_image.mother_photo.url if baby_image.mother_photo else None,
         'age_descriptor': age_descriptor(baby_image.age_stage or baby_image.timeline or ''),
         'segments': _segments_for(baby_image),
     }
@@ -159,4 +169,16 @@ BASE_QUALITY_NEGATIVE = (
     'nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, '
     'extra digit, fewer digits, cropped, worst quality, low quality, '
     'normal quality, jpeg artifacts, signature, watermark, username, blurry'
+)
+
+MULTIPLE_PEOPLE_NEGATIVE = (
+    'two people, multiple people, group photo, family photo, a couple, '
+    'parents together, more than one person, siblings, twins, multiple babies, '
+    'two babies, extra child, another child, several babies, crowd, adults in the photo'
+)
+
+FULL_BODY_NEGATIVE = (
+    'full body, whole body, full-length, entire body, hands, fingers, '
+    'fingers visible, showing hands, arms, feet, legs, shoes, toes, '
+    'hands in frame, full body shot, body visible, lower body'
 )

@@ -5,6 +5,7 @@ from .services.generation_service import GenerationService, REPLICATE_BABY_PROVI
 from .services.similarity_service import SimilarityService
 from .services.scan_service import ScanService
 from .services.parent_photo_scan_service import ParentPhotoScanService
+from .services.image_processing_service import ImageProcessingService
 
 
 def _download_and_save(image_url):
@@ -59,6 +60,10 @@ def process_baby_generation(baby_image_id):
 
         image_url = result.output[0] if isinstance(result.output, list) else result.output
         baby_image.generated_image = _download_and_save(image_url)
+        baby_image.save(update_fields=['generated_image'])
+
+        # Guarantee a single face-first portrait: crop out hands/legs/background.
+        ImageProcessingService().crop_and_save(baby_image.generated_image.path)
 
         similarity_service = SimilarityService()
         baby_image.eyes_similarity = similarity_service.compare_faces(
