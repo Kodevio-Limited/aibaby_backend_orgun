@@ -157,6 +157,40 @@ def build_prompt_extra(baby_image) -> str:
     return ', '.join(_segments_for(baby_image))
 
 
+# ─── User-driven context boost ────────────────────────────────────────────────
+# The strongest, most specific part of the generated prompt. It is built ONLY
+# from the client's input (age, background, outfit, timeline) plus parent-
+# resemblance guidance, so every generation/derivative (change-age,
+# change-outfit, timeline) carries the exact context the user asked for straight
+# to the model. This prevents e.g. a change-outfit from accidentally ageing the
+# baby or dropping the parent identity.
+
+def build_context_boost(baby_image) -> str:
+    """A context block appended to the prompt, derived purely from user input.
+
+    Stated as full sentences so age, background and especially the outfit are
+    unambiguous to the model, and so the baby always inherits the father and
+    mother's identity from the reference photos.
+    """
+    age = age_descriptor(baby_image.age_stage or baby_image.timeline or '')
+    outfit = (getattr(baby_image, 'outfit', '') or '').strip()
+    bg = (getattr(baby_image, 'background', '') or '').strip().lower()
+    background = BACKGROUND_DESCRIPTORS.get(bg, '')
+
+    sentences = []
+    if age:
+        sentences.append(f'This is {age}.')
+    if background:
+        sentences.append(f'The setting is {background}.')
+    if outfit:
+        sentences.append(f'The baby is wearing {outfit}.')
+    sentences.append(
+        'The baby\'s face must be a realistic, highly detailed blend of the '
+        'father and mother from the reference photos.'
+    )
+    return ' '.join(sentences)
+
+
 # ─── Negative prompt blocks ──────────────────────────────────────────────────────
 
 AGE_DRIFT_NEGATIVE = (

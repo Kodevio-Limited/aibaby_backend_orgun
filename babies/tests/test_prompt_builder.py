@@ -4,6 +4,7 @@ from babies.prompt_builder import (
     age_descriptor,
     build_prompt_extra,
     build_context_snapshot,
+    build_context_boost,
     outfit_phrase,
     GENDER_DESCRIPTORS,
     BACKGROUND_DESCRIPTORS,
@@ -89,3 +90,24 @@ class PromptBuilderTests(TestCase):
         image.timeline = '6m'
         extra = build_prompt_extra(image)
         self.assertIn('6 month old baby', extra)
+
+    def test_context_boost_carries_age_outfit_and_parent_identity(self):
+        boost = build_context_boost(self.FakeBabyImage())
+        self.assertIn('5 year old child', boost)
+        self.assertIn('wearing a yellow dress', boost)
+        self.assertIn('outdoors in nature', boost)
+        self.assertIn('father and mother', boost)
+
+    def test_context_boost_prefers_age_over_timeline(self):
+        image = self.FakeBabyImage()
+        image.timeline = '1y'
+        boost = build_context_boost(image)
+        self.assertIn('5 year old child', boost)
+
+    def test_context_boost_uses_timeline_when_age_missing(self):
+        image = self.FakeBabyImage()
+        image.age_stage = None
+        image.timeline = '6m'
+        image.outfit = ''
+        boost = build_context_boost(image)
+        self.assertIn('6 month old baby', boost)

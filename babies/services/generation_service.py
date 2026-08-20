@@ -125,7 +125,7 @@ class GenerationService:
             'style_name': self._photomaker_style(template),
             # Lower style_strength_ratio favours identity fidelity to the parent
             # reference photos -> a stronger father/mother resemblance in the baby.
-            'style_strength_ratio': 18,
+            'style_strength_ratio': 15,
             'guidance_scale': 5,
             'disable_safety_checker': True,
         }

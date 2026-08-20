@@ -1,6 +1,6 @@
 from celery import shared_task
 from .models import BabyImage
-from .prompt_builder import build_prompt_extra
+from .prompt_builder import build_context_boost
 from .services.generation_service import GenerationService, REPLICATE_BABY_PROVIDER
 from .services.similarity_service import SimilarityService
 from .services.scan_service import ScanService
@@ -48,7 +48,7 @@ def process_baby_generation(baby_image_id):
             father_photo_url=father_url,
             mother_photo_url=mother_url,
             gender=baby_image.gender,
-            prompt_extra=build_prompt_extra(baby_image),
+            prompt_extra=build_context_boost(baby_image),
         )
         baby_image.external_job_id = prediction.id
         baby_image.ai_provider = REPLICATE_BABY_PROVIDER
