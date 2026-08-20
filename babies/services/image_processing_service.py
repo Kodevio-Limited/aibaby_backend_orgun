@@ -1,105 +1,164 @@
 """Local post-processing for generated baby images.
 
-The provider (PhotoMaker) tends to render full bodies with hands, fingers and
-feet. We crop every generated image to a tight head-and-shoulders portrait
-around the detected face so the final output is a clean face-first baby photo.
+The provider (PhotoMaker) tends to render full bodies, stray hands/fingers,
+and sometimes multiple/duplicated subjects in one frame. We post-process every
+generated image into a consistent passport-style portrait:
+
+  * the single best (largest, most central) face is chosen,
+  * the crop has a fixed 3:4 portrait aspect ratio,
+  * the face is placed at a deterministic upper-half position (face box top at
+    ~30% of the frame height, horizontally centred) regardless of where the
+    face happened to be rendered, and
+  * the result is resized to a fixed output resolution so every image is framed
+    identically.
 """
+
+PASSPORT_ASPECT = 3.0 / 4.0  # width / height (portrait)
+OUTPUT_SIZE = (768, 1024)    # fixed output resolution (passport-like)
 
 
 class ImageProcessingService:
-    """Detect a face and crop the image to a head-and-shoulders portrait.
+    """Detect a face and normalise the image into a fixed passport-style portrait.
 
     Uses face_recognition (dlib) first, falls back to OpenCV's Haar cascade.
-    If no face is found the original image is returned untouched so a failed
+    If no face is found the original image is left untouched so a failed
     detection never destroys a successful generation.
     """
 
-    def _crop_box(self, img_shape, top, right, bottom, left):
-        height, width = img_shape[:2]
+    def _dlib_faces(self, image_path):
+        try:
+            import face_recognition
+            img = face_recognition.load_image_file(image_path)
+            locations = face_recognition.face_locations(img, model='hog')
+            return list(locations)
+        except BaseException:
+            return []
+
+    def _opencv_faces(self, image_path):
+        try:
+            import cv2
+            img = cv2.imread(image_path)
+            if img is None:
+                return []
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            cascade = cv2.CascadeClassifier(
+                cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+            )
+            faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+            return [(y, x + w, y + h, x) for x, y, w, h in faces]  # top, right, bottom, left
+        except BaseException:
+            return []
+
+    def _detect_faces(self, image_path):
+        faces = self._dlib_faces(image_path)
+        if faces:
+            return faces
+        return self._opencv_faces(image_path)
+
+    @staticmethod
+    def _best_face(faces, width, height):
+        """Pick the primary subject: largest face, tie-broken by centre proximity."""
+        def score(face):
+            top, right, bottom, left = face
+            area = (right - left) * (bottom - top)
+            cx, cy = (left + right) / 2.0, (top + bottom) / 2.0
+            distance = (cx - width / 2.0) ** 2 + (cy - height / 2.0) ** 2
+            return area, -distance
+        return max(faces, key=score)
+
+    @staticmethod
+    def _portrait_crop(box, width, height):
+        """Compute a passport-style crop box with a DETERMINISTIC face position.
+
+        Output aspect ratio is fixed (3:4). The face is horizontally centred
+        and the top of the face box is anchored at 30% of the frame height, so
+        the face ends up in the upper half regardless of where the model placed
+        it. Returns (left, top, right, bottom) or None if it cannot fit.
+        """
+        top, right, bottom, left = box
         face_width = right - left
         face_height = bottom - top
+        if face_width <= 0 or face_height <= 0:
+            return None
+        face_cx = (left + right) / 2.0
 
-        center_x = (left + right) / 2
-        # Bias the crop upward (head fills the frame) — the face box from dlib
-        # already starts around the eyebrows, so we keep most of the head above.
-        center_y = top + face_height * 0.45
+        # Head (including hair above the dlib eye/brow line) ≈ 1.45x face box.
+        head_height = face_height * 1.45
+        # Passport rule of thumb: head occupies ~68% of frame height.
+        crop_height = head_height / 0.68
+        crop_width = crop_height * PASSPORT_ASPECT
 
-        crop_width = face_width * 3.0
-        crop_height = face_height * 3.6
+        face_top_ratio = 0.30  # face box top sits 30% down the frame
+        crop_left = face_cx - crop_width / 2.0
+        crop_top = top - face_top_ratio * crop_height
 
-        left_c = int(center_x - crop_width / 2)
-        top_c = int(center_y - crop_height / 2)
-        right_c = int(center_x + crop_width / 2)
-        bottom_c = int(center_y + crop_height / 2)
+        # Shrink to fit the image bounds first (keeps face anchor fixed), then
+        # translate minimally so the whole crop lies inside the canvas.
+        if crop_width > width or crop_height > height:
+            scale = min(width / crop_width, height / crop_height)
+            if scale <= 0:
+                return None
+            crop_width *= scale
+            crop_height *= scale
+            crop_left = face_cx - crop_width / 2.0
+            crop_top = top - face_top_ratio * crop_height
 
-        left_c = max(0, left_c)
-        top_c = max(0, top_c)
-        right_c = min(width, right_c)
-        bottom_c = min(height, bottom_c)
+        crop_right = crop_left + crop_width
+        crop_bottom = crop_top + crop_height
+
+        if crop_width > width or crop_height > height:
+            return None
+
+        if crop_left < 0:
+            shift = -crop_left
+            crop_left += shift
+            crop_right += shift
+        if crop_right > width:
+            shift = crop_right - width
+            crop_left -= shift
+            crop_right = width
+        if crop_top < 0:
+            shift = -crop_top
+            crop_top += shift
+            crop_bottom += shift
+        if crop_bottom > height:
+            shift = crop_bottom - height
+            crop_top -= shift
+            crop_bottom = height
+
+        left_c = int(round(crop_left))
+        top_c = int(round(crop_top))
+        right_c = int(round(crop_right))
+        bottom_c = int(round(crop_bottom))
 
         if right_c - left_c < 60 or bottom_c - top_c < 60:
             return None
         return (left_c, top_c, right_c, bottom_c)
 
-    def _dlib_face_box(self, image_path):
-        try:
-            import face_recognition
-            img = face_recognition.load_image_file(image_path)
-            locations = face_recognition.face_locations(img, model='hog')
-            if not locations:
-                return None
-            return locations[0]
-        except BaseException:
-            return None
-
-    def _opencv_face_box(self, image_path):
-        try:
-            import cv2
-            img = cv2.imread(image_path)
-            if img is None:
-                return None
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-            cascade = cv2.CascadeClassifier(cascade_path)
-            faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
-            if len(faces) == 0:
-                return None
-            x, y, w, h = faces[0]
-            return (y, x + w, y + h, x)  # top, right, bottom, left
-        except BaseException:
-            return None
-
     def crop_to_face(self, image_path):
-        """Return a PIL Image cropped to the head-and-shoulders portrait, or None."""
+        """Return a PIL Image normalised to the fixed passport-style portrait or None."""
         from PIL import Image
 
-        box = self._dlib_face_box(image_path)
-        if box is None:
-            box = self._opencv_face_box(image_path)
-        if box is None:
+        faces = self._detect_faces(image_path)
+        if not faces:
             return None
 
-        top, right, bottom, left = box
         try:
-            import face_recognition
-            import numpy as np
-            img_shape = face_recognition.load_image_file(image_path).shape
+            with Image.open(image_path) as probe:
+                width, height = probe.size
         except BaseException:
-            try:
-                import cv2
-                img_shape = cv2.imread(image_path).shape
-            except BaseException:
-                return None
+            return None
 
-        crop = self._crop_box(img_shape, top, right, bottom, left)
+        box = self._best_face(faces, width, height)
+        crop = self._portrait_crop(box, width, height)
         if crop is None:
             return None
 
+        left, top, right, bottom = crop
         try:
-            image = Image.open(image_path)
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            return image.crop(crop)
+            image = Image.open(image_path).convert('RGB')
+            cropped = image.crop((left, top, right, bottom))
+            return cropped.resize(OUTPUT_SIZE, Image.LANCZOS)
         except BaseException:
             return None
 

@@ -17,7 +17,7 @@ from typing import Dict, List
 # single-subject, face-first portrait — PhotoMaker is fed two parent reference
 # photos and tends to render extra people (or full bodies with hands/feet)
 # unless the prompt explicitly rules them out.
-SINGLE_BABY_DESCRIPTOR = 'a single baby only, one baby, exactly one child in the frame'
+SINGLE_BABY_DESCRIPTOR = 'a single baby only, one baby, exactly one baby, one central subject in the frame'
 CLOSEUP_DESCRIPTOR = 'close-up head and shoulders portrait, face filling the frame, hands and feet not visible'
 
 GENDER_DESCRIPTORS = {
@@ -172,9 +172,11 @@ BASE_QUALITY_NEGATIVE = (
 )
 
 MULTIPLE_PEOPLE_NEGATIVE = (
-    'two people, multiple people, group photo, family photo, a couple, '
-    'parents together, more than one person, siblings, twins, multiple babies, '
-    'two babies, extra child, another child, several babies, crowd, adults in the photo'
+    'two people, multiple people, group photo, family photo, more than one person, '
+    'siblings, twins, multiple babies, two babies, extra child, another child, '
+    'several babies, duplicate baby, duplicated face, split image, split frame, '
+    'collage, diptych, double exposure, two portraits in one frame, cropped baby, '
+    'half of a baby at the top and half at the bottom, cropped head, cut off face, crowd'
 )
 
 FULL_BODY_NEGATIVE = (
