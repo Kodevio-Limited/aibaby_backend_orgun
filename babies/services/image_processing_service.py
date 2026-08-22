@@ -173,3 +173,53 @@ class ImageProcessingService:
             return True
         except BaseException:
             return False
+
+    def create_face_crop(self, source_path):
+        """Save a bare-face crop of a parent photo to storage.
+
+        PhotoMaker blends reference images; asking it to consume only the FACE
+        (not the whole body photo) makes the father/mother identity far more
+        literal, so the generated baby resembles them more closely. Returns the
+        storage-relative name (e.g. 'crops/...jpg') or None if no face / on error.
+        """
+        import io
+        import uuid
+        from PIL import Image
+
+        faces = self._detect_faces(source_path)
+        if not faces:
+            return None
+
+        try:
+            with Image.open(source_path) as probe:
+                width, height = probe.size
+        except BaseException:
+            return None
+
+        box = self._best_face(faces, width, height)
+        top, right, bottom, left = box
+        face_w, face_h = right - left, bottom - top
+        if face_w <= 0 or face_h <= 0:
+            return None
+
+        margin = 0.12
+        c_left = max(0, int(left - face_w * margin))
+        c_top = max(0, int(top - face_h * margin * 1.4))
+        c_right = min(width, int(right + face_w * margin))
+        c_bottom = min(height, int(bottom + face_h * margin))
+        if (c_right - c_left) < 50 or (c_bottom - c_top) < 50:
+            return None
+
+        try:
+            from django.core.files.base import ContentFile
+            from django.core.files.storage import default_storage
+            cropped = Image.open(source_path).convert('RGB').crop(
+                (c_left, c_top, c_right, c_bottom)
+            )
+            buf = io.BytesIO()
+            cropped.save(buf, format='JPEG', quality=95)
+            return default_storage.save(
+                f'crops/{uuid.uuid4()}.jpg', ContentFile(buf.getvalue())
+            )
+        except BaseException:
+            return None

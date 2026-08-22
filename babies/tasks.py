@@ -62,12 +62,30 @@ def _run_outfit_edit(baby_image):
     baby_image.save()
 
 
+def _parent_face_url(baby_image, field_name, base_url):
+    """Return an absolute URL for a bare-face crop of a parent photo.
+
+    The provider blends reference images, so we hand it ONLY the face (much
+    stronger father/mother resemblance) and fall back to the original photo if
+    no face can be detected.
+    """
+    from django.conf import settings
+    field = getattr(baby_image, field_name)
+    if not field or not field.name:
+        return None
+    name = ImageProcessingService().create_face_crop(field.path)
+    if name:
+        media = getattr(settings, 'MEDIA_URL', None) or '/media/'
+        return f"{base_url}/{media.strip('/')}/{name}"
+    return f"{base_url}{field.url}"
+
+
 def _run_normal_generation(baby_image):
     from django.conf import settings
 
     base_url = getattr(settings, 'BASE_URL', '').rstrip('/')
-    father_url = f"{base_url}{baby_image.father_photo.url}"
-    mother_url = f"{base_url}{baby_image.mother_photo.url}"
+    father_url = _parent_face_url(baby_image, 'father_photo', base_url)
+    mother_url = _parent_face_url(baby_image, 'mother_photo', base_url)
 
     gen_service = GenerationService()
     prediction = gen_service.generate_baby(

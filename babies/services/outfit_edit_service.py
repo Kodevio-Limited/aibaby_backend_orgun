@@ -74,43 +74,57 @@ class OutfitEditService:
         return (cr > 133) & (cr < 173) & (cb > 77) & (cb < 127) & (y > 80) & (y < 215)
 
     @staticmethod
-    def _background_estimate(bgr):
+    def _background_mask(bgr):
+        """Mark the backdrop by flood-filling from the image borders.
+
+        A studio backdrop is smooth and contiguous with the border, while the
+        baby's face/body create an edge that stops the fill. This isolates the
+        background REGARDLESS of its colour — so even on a white/olive backdrop a
+        light-coloured garment is kept (the old colour-distance check dropped it,
+        which is why "white/olive" outfits never recoloured).
+        """
+        import cv2
         import numpy as np
         h, w = bgr.shape[:2]
-        m = 8
-        patches = [
-            bgr[0:m, 0:m],
-            bgr[0:m, w - m:w],
-            bgr[h - m - 1:h - 1, 0:m],
-            bgr[h - m - 1:h - 1, w - m:w],
+        gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+        flood = np.zeros((h + 2, w + 2), np.uint8)
+        flags = 4 | cv2.FLOODFILL_MASK_ONLY
+        seeds = [
+            (0, 0), (h // 4, 0), (h // 2, 0),
+            (0, w - 1), (h // 4, w - 1), (h // 2, w - 1),
+            (0, w // 2), (0, w // 4), (0, 3 * w // 4),
+            (h - 1, 0), (h - 1, w - 1),
         ]
-        return np.mean(np.concatenate(patches), axis=(0, 1))
+        for sy, sx in seeds:
+            if flood[sy + 1, sx + 1]:
+                continue
+            cv2.floodFill(gray, flood, (sx, sy), 1, 8, 8, flags=flags)
+        return flood[1:h + 1, 1:w + 1] > 0
 
-    def _garment_mask(self, bgr, bg):
+    def _garment_mask(self, bgr):
         import numpy as np
         h, w = bgr.shape[:2]
 
         if self._face:
             top, right, bottom, left = self._face
             face_height = bottom - top
-            row_start = int(bottom + face_height * 0.15)  # just below the chin
+            row_start = int(bottom + face_height * 0.18)  # just below the chin
         else:
             row_start = int(h * 0.50)
         row_start = max(0, min(row_start, int(h * 0.90)))
         row_end = int(h * 0.97)
 
-        col_start = int(w * 0.06)
-        col_end = int(w * 0.94)
+        col_start = int(w * 0.04)
+        col_end = int(w * 0.96)
 
         mask = np.zeros((h, w), dtype=bool)
         mask[row_start:row_end, col_start:col_end] = True
 
-        # Do not recolour skin (neck / hands) or the studio background.
+        # Never recolour skin (neck / hands) or the backdrop.
         mask &= ~self._skin_mask(bgr)
-        bg_distance = np.linalg.norm(bgr.astype(np.float32) - bg, axis=2)
-        mask &= bg_distance > 35
+        mask &= ~self._background_mask(bgr)
 
-        # Small morphological cleanup removes isolated background speckles.
+        # Morphological cleanup removes isolated speckles.
         return self._clean(mask)
 
     @staticmethod
@@ -151,8 +165,7 @@ class OutfitEditService:
             return False
 
         self._face = self._detect_face(image_path)
-        bg = self._background_estimate(bgr)
-        mask = self._garment_mask(bgr, bg)
+        mask = self._garment_mask(bgr)
         if not mask.any():
             return False
 
