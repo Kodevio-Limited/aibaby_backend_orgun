@@ -134,8 +134,22 @@ PROMPT_CHECKPOINTS: Dict[str, Dict] = {
 }
 
 
+def _template_context(template) -> Dict:
+    if not template:
+        return {}
+    return {
+        'template_name': template.name,
+        'template_description': template.description,
+        'template_category': template.category,
+        'template_theme': template.theme,
+        'template_background_type': template.background_type,
+        'template_background_url': template.background.url if template.background else None,
+    }
+
+
 def build_context_snapshot(baby_image) -> Dict:
     """Persisted audit record: exactly what the client asked for + what we sent."""
+    template = getattr(baby_image, 'generation_template', None)
     return {
         'gender': baby_image.gender,
         'age_stage': baby_image.age_stage,
@@ -149,6 +163,7 @@ def build_context_snapshot(baby_image) -> Dict:
         'mother_photo': baby_image.mother_photo.url if baby_image.mother_photo else None,
         'age_descriptor': age_descriptor(baby_image.age_stage or baby_image.timeline or ''),
         'segments': _segments_for(baby_image),
+        **_template_context(template),
     }
 
 
@@ -184,6 +199,18 @@ def build_context_boost(baby_image) -> str:
         sentences.append(f'The setting is {background}.')
     if outfit:
         sentences.append(f'The baby is wearing {outfit}.')
+
+    template = getattr(baby_image, 'generation_template', None)
+    if template:
+        if template.theme:
+            sentences.append(f'The theme is {template.theme}.')
+        if template.description:
+            sentences.append(f'Style: {template.description}')
+        if template.category:
+            sentences.append(f'Category: {template.category}')
+        if template.background_type:
+            sentences.append(f'Environment: {template.background_type}')
+
     sentences.append(
         'The baby\'s face must be a realistic, highly detailed blend of the '
         'father and mother from the reference photos.'

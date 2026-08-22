@@ -110,6 +110,35 @@ def _run_normal_generation(baby_image):
     # Guarantee a single face-first portrait: crop out hands/legs/background.
     ImageProcessingService().crop_and_save(baby_image.generated_image.path)
 
+    # Composite template background if one is set
+    template = baby_image.generation_template
+    if template and template.background:
+        try:
+            from PIL import Image, ImageFilter, ImageDraw
+            bg = Image.open(template.background.path).convert('RGB')
+            bg = bg.resize((768, 1024), Image.LANCZOS)
+            baby = Image.open(baby_image.generated_image.path).convert('RGBA')
+            # Scale baby to 90% and center on background
+            bw, bh = baby.size
+            scale = 0.9
+            nw, nh = int(bw * scale), int(bh * scale)
+            baby = baby.resize((nw, nh), Image.LANCZOS)
+            paste_x = (768 - nw) // 2
+            paste_y = (1024 - nh) // 2
+            # Soft vignette mask for the baby edges
+            mask = Image.new('L', (nw, nh), 255)
+            draw = ImageDraw.Draw(mask)
+            margin = 40
+            draw.rounded_rectangle(
+                [(margin, margin), (nw - margin, nh - margin)],
+                radius=60, fill=255
+            )
+            mask = mask.filter(ImageFilter.GaussianBlur(radius=25))
+            bg.paste(baby, (paste_x, paste_y), mask)
+            bg.save(baby_image.generated_image.path, quality=95)
+        except Exception:
+            pass  # compositing failure should not fail the generation
+
     similarity_service = SimilarityService()
     baby_image.eyes_similarity = similarity_service.compare_faces(
         baby_image.generated_image.path, baby_image.father_photo.path

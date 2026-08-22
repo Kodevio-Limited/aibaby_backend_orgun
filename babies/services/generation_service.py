@@ -27,14 +27,28 @@ class GenerationService:
         self.model = REPLICATE_BABY_MODEL
         self.version = REPLICATE_BABY_VERSION
 
-    def _get_active_prompt(self):
+    def _get_active_prompts(self):
         from ..models import GenerationPrompt
-        return GenerationPrompt.objects.filter(status='active').order_by('-created_at').first()
+        CATEGORY_ORDER = [
+            'General Prompt', 'Background Prompt', 'Theme Prompt', 'Monthly Prompt',
+        ]
+        qs = GenerationPrompt.objects.filter(status='active')
+        grouped = {cat: [] for cat in CATEGORY_ORDER}
+        for p in qs:
+            cat = p.category if p.category in CATEGORY_ORDER else None
+            if cat:
+                grouped[cat].append(p)
+        results = []
+        for cat in CATEGORY_ORDER:
+            results.extend(grouped[cat])
+        return results
 
     def build_prompt(self, baby_image=None, gender=None, age_stage=None, background=None, outfit=None, template=None, prompt_extra=''):
-        """Assemble the final prompt text from the active admin prompt + user-selected template."""
-        active_prompt = self._get_active_prompt()
-        base = active_prompt.content if active_prompt else 'a realistic photo of a baby, natural lighting'
+        """Assemble the final prompt text from ALL active admin prompts (ordered by category)
+        + user-selected template prompt."""
+        active_prompts = self._get_active_prompts()
+        base_parts = [p.content for p in active_prompts if p.content]
+        base = '. '.join(filter(None, base_parts)) if base_parts else 'a realistic photo of a baby, natural lighting'
 
         template_text = ''
         if template and template.ai_prompt:
@@ -58,8 +72,9 @@ class GenerationService:
             prompt = prompt.replace(key, value)
 
         negative_parts = []
-        if active_prompt and active_prompt.negative_prompt:
-            negative_parts.append(active_prompt.negative_prompt)
+        for p in active_prompts:
+            if p.negative_prompt:
+                negative_parts.append(p.negative_prompt)
         if template and template.negative_prompt:
             negative_parts.append(template.negative_prompt)
         negative_prompt = ', '.join(filter(None, negative_parts))
