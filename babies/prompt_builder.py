@@ -33,10 +33,10 @@ BACKGROUND_DESCRIPTORS = {
 }
 
 KNOWN_AGE_DESCRIPTORS = {
-    'newborn': 'a newborn baby, just a few days old, tiny infant',
-    '3m': 'a 3 month old baby, infant with baby features',
-    '6m': 'a 6 month old baby, infant with chubby baby cheeks',
-    '1y': 'a 1 year old baby, toddler with baby features',
+    'newborn': 'a newborn baby, just a few days old, tiny infant, very young baby, not a child or adult',
+    '3m': 'a 3 month old baby, tiny young infant, exactly 3 months old, small baby with soft baby features and baby fat, definitely a baby, not a child, not an adult, not a teenager, infant face, baby proportions',
+    '6m': 'a 6 month old baby, young infant with chubby baby cheeks, exactly 6 months old, baby face with baby features, definitely a baby, not a child or adult',
+    '1y': 'a 1 year old baby, young toddler, exactly 1 year old, baby face with toddler features, definitely a young child, not an adult, not a teenager',
 }
 
 
@@ -59,14 +59,14 @@ def age_descriptor(age_stage: str) -> str:
 
     months = re.match(r'^(\d+)m$', stage)
     if months:
-        return f'a {months.group(1)} month old baby, young infant with baby features'
+        return f'a {months.group(1)} month old baby, young infant, exactly {months.group(1)} months old, small baby with soft baby features, definitely a baby, not a child, not an adult'
 
     years = re.match(r'^(\d+)y$', stage)
     if years:
         count = int(years.group(1))
         if count <= 1:
-            return f'a {count} year old baby, age exactly {count} year, toddler with baby features'
-        return f'a {count} year old child, age exactly {count} years, young child with soft baby-like features, definitely a child, not an adult, not a teenager'
+            return f'a {count} year old baby, age exactly {count} year, young toddler with baby face, definitely a baby, not a child, not an adult'
+        return f'a {count} year old child, age exactly {count} years, young child with soft baby-like features, definitely a young child, not an adult, not a teenager'
 
     return f'a {stage} old baby'
 
@@ -183,9 +183,8 @@ def build_prompt_extra(baby_image) -> str:
 def build_context_boost(baby_image) -> str:
     """A context block appended to the prompt, derived purely from user input.
 
-    Stated as full sentences so age, background and especially the outfit are
-    unambiguous to the model, and so the baby always inherits the father and
-    mother's identity from the reference photos.
+    Age is stated FIRST and repeated so the model applies the correct stage
+    before the identity blend from parent reference photos dominates.
     """
     age = age_descriptor(baby_image.age_stage or baby_image.timeline or '')
     outfit = (getattr(baby_image, 'outfit', '') or '').strip()
@@ -194,11 +193,14 @@ def build_context_boost(baby_image) -> str:
 
     sentences = []
     if age:
-        sentences.append(f'This is {age}.')
+        sentences.append(f'IMPORTANT: {age}.')
     if background:
         sentences.append(f'The setting is {background}.')
     if outfit:
         sentences.append(f'The baby is wearing {outfit}.')
+
+    if age:
+        sentences.append(f'Remember: this is {age}.')
 
     template = getattr(baby_image, 'generation_template', None)
     if template:
@@ -235,7 +237,10 @@ def build_outfit_prompt(outfit) -> str:
 AGE_DRIFT_NEGATIVE = (
     'adult, grown up, grown-up, teenager, young adult, man, woman, '
     'elderly, aged, mature face, facial hair, adult features, adolescent, '
-    'adult teeth, long face, old child, 20 year old, 30 year old, 40 year old'
+    'adult teeth, long face, old child, 20 year old, 30 year old, 40 year old, '
+    'old face, mature skin, adult nose, adult jaw, adult chin, adult eyes, '
+    'adult proportions, adult looking, grown man, grown woman, not a baby, '
+    'teenage, puberty, young man, young woman, adult head shape, adult bone structure'
 )
 
 BASE_QUALITY_NEGATIVE = (
